@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volunteer history — PawHaven</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .vh-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            align-items: flex-end;
+            margin-bottom: 1.25rem;
+        }
+        .vh-toolbar input,
+        .vh-toolbar select {
+            padding: 0.55rem 0.85rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-family: inherit;
+        }
+        .vh-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.15rem;
+            margin-top: 0.5rem;
+        }
+        .vh-card {
+            background: #fff;
+            border-radius: var(--radius);
+            padding: 1.25rem 1.35rem;
+            text-align: left;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(45, 106, 111, 0.06);
+        }
+        .vh-card h3 {
+            font-size: 1.05rem;
+            margin: 0 0 0.35rem;
+            color: var(--teal);
+        }
+        .vh-card .meta {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-bottom: 0.75rem;
+        }
+        .vh-card .dates {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--ink);
+            margin: 0.5rem 0;
+        }
+        .vh-card .summary {
+            font-size: 0.92rem;
+            line-height: 1.45;
+            color: var(--ink);
+            margin: 0.35rem 0;
+        }
+        .vh-card .extra {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-top: 0.65rem;
+            padding-top: 0.65rem;
+            border-top: 1px solid rgba(45, 106, 111, 0.08);
+        }
+        .vh-card .row-actions {
+            margin-top: 0.85rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        .vh-card .row-actions button {
+            font-size: 0.82rem;
+        }
+    </style>
+    <script src="app.js"></script>
+    <script src="api.js"></script>
+</head>
+<body class="layout-admin">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">🐾 PawHaven</div>
+        <p class="brand-sub">Volunteer experience</p>
+        <nav>
+            <a href="index.html" data-nav>📊 Dashboard</a>
+            <a href="pets.html" data-nav>🐕 Pets</a>
+            <a href="medical.html" data-nav>🩺 Medical records</a>
+            <a href="adoptions.html" data-nav>📋 Adoptions</a>
+            <a href="shelters.html" data-nav>🏢 Shelters</a>
+            <a href="volunteers.html" data-nav>🤝 Volunteers</a>
+            <a href="volunteer-history.html" data-nav>📜 Volunteer history</a>
+            <a href="donations.html" data-nav>💚 Donations</a>
+            <a href="login.html" class="nav-logout" data-nav>🚪 Log out</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <button type="button" class="menu-toggle" onclick="toggleSidebar()" aria-label="Open menu">☰ Menu</button>
+        <h1 class="page-title">Volunteer history</h1>
+        <p class="page-desc">Prior placements outside PawHaven: organization, role summary, time period, total hours, and a reference contact.</p>
+
+        <div class="vh-toolbar">
+            <input type="search" id="vh-search" placeholder="Search organization, notes, volunteer…" aria-label="Search history">
+            <select id="vh-filter-vol" aria-label="Filter by volunteer">
+                <option value="">All volunteers</option>
+            </select>
+        </div>
+
+        <p id="vh-error" class="page-desc" style="color:#b91c1c;display:none;"></p>
+        <div class="vh-grid" id="vh-grid"></div>
+
+        <div class="form-panel" style="max-width:560px;margin-top:2rem;">
+            <h2 style="font-size:1.1rem;margin-bottom:1rem;font-weight:800;">Add prior experience (staff)</h2>
+            <form id="vhForm">
+                <div class="form-group">
+                    <label for="vhVol">Volunteer</label>
+                    <select id="vhVol" name="Volunteer_ID" required>
+                        <option value="">Loading…</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="vhOrg">Organization / program</label>
+                    <input type="text" id="vhOrg" name="Organization_Name" required placeholder="e.g. City Animal Aid NGO">
+                </div>
+                <div class="form-group">
+                    <label for="vhWork">Work summary</label>
+                    <textarea id="vhWork" name="Work_Summary" rows="3" placeholder="What they did (tasks, events, animals)"></textarea>
+                </div>
+                <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                    <div>
+                        <label for="vhStart">Start date</label>
+                        <input type="date" id="vhStart" name="Start_Date">
+                    </div>
+                    <div>
+                        <label for="vhEnd">End date</label>
+                        <input type="date" id="vhEnd" name="End_Date">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="vhHours">Total hours (optional)</label>
+                    <input type="number" id="vhHours" name="Hours_Total" min="0" step="1" placeholder="e.g. 120">
+                </div>
+                <div class="form-group">
+                    <label for="vhRef">Reference contact (optional)</label>
+                    <input type="text" id="vhRef" name="Reference_Contact" placeholder="Name, email, or phone">
+                </div>
+                <div class="form-group">
+                    <label for="vhNotes">Notes (optional)</label>
+                    <textarea id="vhNotes" name="Notes" rows="2"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Save record</button>
+                <p id="vh-form-msg" class="page-desc" style="margin-top:0.75rem;display:none;"></p>
+            </form>
+        </div>
+    </main>
+    <script>
+        (function () {
+            var api = window.PawHavenAPI;
+            var root = document.getElementById("vh-grid");
+            var err = document.getElementById("vh-error");
+            var searchEl = document.getElementById("vh-search");
+            var filterVol = document.getElementById("vh-filter-vol");
+            var volSelect = document.getElementById("vhVol");
+            var form = document.getElementById("vhForm");
+            var formMsg = document.getElementById("vh-form-msg");
+
+            if (!api || !api.fetchJSON) {
+                if (err) {
+                    err.style.display = "block";
+                    err.textContent =
+                        "API client missing. Open this app from http://localhost:3000/ with npm start.";
+                }
+                return;
+            }
+
+            function esc(s) {
+                return String(s || "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;");
+            }
+
+            function volName(map, id) {
+                var v = map[String(id)];
+                if (!v) return String(id || "—");
+                return (
+                    v.Volunteer_Name ||
+                    v.Name ||
+                    v.name ||
+                    String(id)
+                );
+            }
+
+            function fillVolunteerSelects(volunteers) {
+                var opts =
+                    '<option value="">Select volunteer…</option>';
+                (volunteers || []).forEach(function (v) {
+                    var id = String(v.Volunteer_ID || v.volunteer_id || "");
+                    if (!id) return;
+                    var name =
+                        v.Volunteer_Name ||
+                        v.Name ||
+                        v.name ||
+                        id;
+                    opts +=
+                        '<option value="' +
+                        esc(id) +
+                        '">' +
+                        esc(name + " (" + id + ")") +
+                        "</option>";
+                });
+                if (volSelect) volSelect.innerHTML = opts;
+                if (filterVol) {
+                    var f =
+                        '<option value="">All volunteers</option>';
+                    (volunteers || []).forEach(function (v) {
+                        var id = String(v.Volunteer_ID || v.volunteer_id || "");
+                        if (!id) return;
+                        var name =
+                            v.Volunteer_Name ||
+                            v.Name ||
+                            v.name ||
+                            id;
+                        f +=
+                            '<option value="' +
+                            esc(id) +
+                            '">' +
+                            esc(name) +
+                            "</option>";
+                    });
+                    filterVol.innerHTML = f;
+                }
+            }
+
+            function formatDate(d) {
+                if (!d) return "—";
+                return String(d).slice(0, 10);
+            }
+
+            function matches(row, volMap, q) {
+                if (!q) return true;
+                q = q.toLowerCase();
+                var org = String(
+                    row.Organization_Name || ""
+                ).toLowerCase();
+                var sum = String(row.Work_Summary || "").toLowerCase();
+                var notes = String(row.Notes || "").toLowerCase();
+                var hid = String(row.History_ID || "").toLowerCase();
+                var vid = String(row.Volunteer_ID || "").toLowerCase();
+                var vname = String(
+                    volName(volMap, row.Volunteer_ID) || ""
+                ).toLowerCase();
+                return (
+                    org.indexOf(q) !== -1 ||
+                    sum.indexOf(q) !== -1 ||
+                    notes.indexOf(q) !== -1 ||
+                    hid.indexOf(q) !== -1 ||
+                    vid.indexOf(q) !== -1 ||
+                    vname.indexOf(q) !== -1
+                );
+            }
+
+            function render(rows, volMap) {
+                var q = (searchEl && searchEl.value) || "";
+                q = q.trim().toLowerCase();
+                var fv =
+                    filterVol && filterVol.value
+                        ? String(filterVol.value)
+                        : "";
+                var list = (rows || []).filter(function (r) {
+                    if (fv && String(r.Volunteer_ID || "") !== fv)
+                        return false;
+                    return matches(r, volMap, q);
+                });
+                list.sort(function (a, b) {
+                    var da = String(a.Start_Date || "");
+                    var db = String(b.Start_Date || "");
+                    return db.localeCompare(da);
+                });
+
+                root.innerHTML = "";
+                if (!list.length) {
+                    root.innerHTML =
+                        '<p class="page-desc">No history rows match. Add one below or adjust filters.</p>';
+                    return;
+                }
+
+                list.forEach(function (h) {
+                    var id = String(h.History_ID || "");
+                    var vid = String(h.Volunteer_ID || "");
+                    var org = h.Organization_Name || "—";
+                    var sum = h.Work_Summary || "";
+                    var hours =
+                        h.Hours_Total != null && h.Hours_Total !== ""
+                            ? String(h.Hours_Total) + " hrs"
+                            : null;
+                    var ref = h.Reference_Contact || "";
+                    var notes = h.Notes || "";
+
+                    var art = document.createElement("article");
+                    art.className = "vh-card";
+                    var extra = "";
+                    if (hours || ref || notes) {
+                        extra = '<div class="extra">';
+                        if (hours)
+                            extra +=
+                                "<div><strong>Hours</strong> · " +
+                                esc(hours) +
+                                "</div>";
+                        if (ref)
+                            extra +=
+                                "<div><strong>Reference</strong> · " +
+                                esc(ref) +
+                                "</div>";
+                        if (notes)
+                            extra +=
+                                "<div><strong>Notes</strong> · " +
+                                esc(notes) +
+                                "</div>";
+                        extra += "</div>";
+                    }
+
+                    art.innerHTML =
+                        "<h3>" +
+                        esc(org) +
+                        "</h3>" +
+                        '<p class="meta">' +
+                        esc(volName(volMap, vid)) +
+                        " · ID " +
+                        esc(vid) +
+                        " · <code>" +
+                        esc(id) +
+                        "</code></p>" +
+                        '<p class="dates">' +
+                        esc(formatDate(h.Start_Date)) +
+                        " → " +
+                        esc(formatDate(h.End_Date)) +
+                        "</p>" +
+                        (sum
+                            ? '<p class="summary">' + esc(sum) + "</p>"
+                            : '<p class="summary" style="color:var(--muted);">No work summary.</p>') +
+                        extra +
+                        '<div class="row-actions">' +
+                        '<button type="button" class="btn btn-secondary vh-del" data-id="' +
+                        esc(id) +
+                        '">Delete</button>' +
+                        "</div>";
+
+                    var delBtn = art.querySelector(".vh-del");
+                    if (delBtn) {
+                        delBtn.addEventListener("click", function () {
+                            if (
+                                !confirm(
+                                    "Delete this volunteer history record?"
+                                )
+                            )
+                                return;
+                            api
+                                .fetchJSON(
+                                    "/volunteer-history/" +
+                                        encodeURIComponent(id),
+                                    { method: "DELETE" }
+                                )
+                                .then(function () {
+                                    loadAll();
+                                })
+                                .catch(function (e) {
+                                    err.style.display = "block";
+                                    err.textContent =
+                                        e.message || String(e);
+                                });
+                        });
+                    }
+                    root.appendChild(art);
+                });
+            }
+
+            var cacheRows = [];
+            var cacheVolMap = {};
+
+            function loadAll() {
+                err.style.display = "none";
+                Promise.all([
+                    api.fetchJSON("/volunteer-history"),
+                    api.fetchJSON("/volunteers"),
+                ])
+                    .then(function (pair) {
+                        var rows = pair[0] || [];
+                        var volunteers = pair[1] || [];
+                        var volMap = {};
+                        volunteers.forEach(function (v) {
+                            var id = v.Volunteer_ID || v.volunteer_id;
+                            if (id != null) volMap[String(id)] = v;
+                        });
+                        cacheRows = rows;
+                        cacheVolMap = volMap;
+                        fillVolunteerSelects(volunteers);
+                        render(rows, volMap);
+                    })
+                    .catch(function (e) {
+                        err.style.display = "block";
+                        err.textContent = e.message || String(e);
+                    });
+            }
+
+            function redraw() {
+                render(cacheRows, cacheVolMap);
+            }
+
+            if (searchEl) {
+                searchEl.addEventListener("input", redraw);
+                searchEl.addEventListener("search", redraw);
+            }
+            if (filterVol) {
+                filterVol.addEventListener("change", redraw);
+            }
+
+            if (form) {
+                form.addEventListener("submit", function (ev) {
+                    ev.preventDefault();
+                    formMsg.style.display = "none";
+                    var vid = (volSelect && volSelect.value) || "";
+                    if (!vid) {
+                        formMsg.style.display = "block";
+                        formMsg.style.color = "#b91c1c";
+                        formMsg.textContent = "Choose a volunteer.";
+                        return;
+                    }
+                    var payload = {
+                        Volunteer_ID: vid,
+                        Organization_Name: (
+                            document.getElementById("vhOrg") || {}
+                        ).value
+                            ? String(
+                                  document.getElementById("vhOrg").value
+                              ).trim()
+                            : "",
+                        Work_Summary: (
+                            document.getElementById("vhWork") || {}
+                        ).value
+                            ? String(
+                                  document.getElementById("vhWork").value
+                              ).trim()
+                            : null,
+                        Start_Date:
+                            (document.getElementById("vhStart") || {})
+                                .value || null,
+                        End_Date:
+                            (document.getElementById("vhEnd") || {}).value ||
+                            null,
+                    };
+                    var hrs = (document.getElementById("vhHours") || {})
+                        .value;
+                    if (hrs !== "" && hrs != null) {
+                        var hn = parseInt(hrs, 10);
+                        if (!isNaN(hn)) payload.Hours_Total = hn;
+                    }
+                    var ref = (document.getElementById("vhRef") || {})
+                        .value;
+                    if (ref && String(ref).trim())
+                        payload.Reference_Contact = String(ref).trim();
+                    var notes = (document.getElementById("vhNotes") || {})
+                        .value;
+                    if (notes && String(notes).trim())
+                        payload.Notes = String(notes).trim();
+
+                    if (!payload.Organization_Name) {
+                        formMsg.style.display = "block";
+                        formMsg.style.color = "#b91c1c";
+                        formMsg.textContent = "Organization is required.";
+                        return;
+                    }
+
+                    api
+                        .fetchJSON("/volunteer-history", {
+                            method: "POST",
+                            body: payload,
+                        })
+                        .then(function () {
+                            formMsg.style.display = "block";
+                            formMsg.style.color = "var(--teal)";
+                            formMsg.textContent = "Saved.";
+                            form.reset();
+                            if (volSelect) volSelect.selectedIndex = 0;
+                            loadAll();
+                        })
+                        .catch(function (e) {
+                            formMsg.style.display = "block";
+                            formMsg.style.color = "#b91c1c";
+                            formMsg.textContent = e.message || String(e);
+                        });
+                });
+            }
+
+            loadAll();
+        })();
+    </script>
+</body>
+</html>

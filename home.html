@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PawHaven — Rescued Pet Adoption</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .public-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            border-bottom: 1px solid rgba(45, 106, 111, 0.08);
+        }
+        .public-nav .logo {
+            font-weight: 800;
+            font-size: 1.25rem;
+            color: var(--teal);
+            text-decoration: none;
+        }
+        .public-nav .actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .public-nav .actions a {
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--ink);
+            font-size: 0.9rem;
+        }
+        .public-nav .actions a:hover {
+            color: var(--coral);
+        }
+        .hero-pub {
+            text-align: center;
+            padding: 3.5rem 1.5rem 4rem;
+            background:
+                radial-gradient(ellipse 70% 50% at 50% 0%, rgba(232, 93, 76, 0.12), transparent),
+                linear-gradient(180deg, #e8f4f2 0%, var(--cream) 100%);
+        }
+        .hero-pub h1 {
+            font-size: clamp(1.85rem, 4vw, 2.65rem);
+            font-weight: 800;
+            color: var(--ink);
+            max-width: 18ch;
+            margin: 0 auto 1rem;
+            line-height: 1.15;
+        }
+        .hero-pub p {
+            color: var(--muted);
+            max-width: 42ch;
+            margin: 0 auto 1.75rem;
+            font-size: 1.05rem;
+            line-height: 1.55;
+        }
+        .hero-ctas {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .grid-pub {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.25rem;
+            padding: 0 1.5rem 3.5rem;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+        .tile-pub {
+            background: #fff;
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(45, 106, 111, 0.06);
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .tile-pub:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 48px rgba(45, 106, 111, 0.12);
+        }
+        .tile-pub .icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        .tile-pub h3 {
+            font-size: 1.1rem;
+            font-weight: 800;
+            margin-bottom: 0.35rem;
+            color: var(--teal);
+        }
+        .tile-pub p {
+            font-size: 0.9rem;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+        .footer-pub {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--muted);
+            font-size: 0.85rem;
+            border-top: 1px solid #eee;
+        }
+        .public-sections {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 1.5rem 3rem;
+        }
+        .public-sections section {
+            margin-bottom: 2.5rem;
+        }
+        .public-sections h2 {
+            font-size: 1.2rem;
+            color: var(--teal);
+            margin-bottom: 0.75rem;
+        }
+        .public-sections p {
+            color: var(--muted);
+            line-height: 1.55;
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+    <header class="public-nav">
+        <a class="logo" href="home.html">🐾 PawHaven</a>
+        <div class="actions">
+            <a href="pets.html">Browse pets</a>
+            <a href="#donate-info">Donate</a>
+            <a href="signup.html">Sign up</a>
+            <a href="login.html" class="btn btn-primary btn-sm">Log in</a>
+        </div>
+    </header>
+
+    <section class="hero-pub">
+        <h1>Find your new best friend</h1>
+        <p>We connect rescued animals with loving homes across partner shelters. Explore pets, apply to adopt, or support care and medical records for animals in need.</p>
+        <div class="hero-ctas">
+            <a class="btn btn-primary" href="pets.html">View available pets</a>
+            <a class="btn btn-outline" href="#adopt-process">Adoption process</a>
+        </div>
+    </section>
+
+    <div class="grid-pub">
+        <a class="tile-pub" href="pets.html">
+            <div class="icon" aria-hidden="true">🐕</div>
+            <h3>Rescued pets</h3>
+            <p>Browse animals by species, age, and adoption status — aligned with our Pet entity and shelter assignments.</p>
+        </a>
+        <a class="tile-pub" href="#adopt-process">
+            <div class="icon" aria-hidden="true">📋</div>
+            <h3>Adoption process</h3>
+            <p>How adopting works: browse pets, apply, and work with staff. Application records are managed securely by the shelter.</p>
+        </a>
+        <a class="tile-pub" href="#shelters">
+            <div class="icon" aria-hidden="true">🏠</div>
+            <h3>Our shelters</h3>
+            <p>Partner rescue centres across the region — one connected system for animals in need.</p>
+        </a>
+        <a class="tile-pub" href="#volunteer">
+            <div class="icon" aria-hidden="true">🤝</div>
+            <h3>Volunteer</h3>
+            <p>Give time for walks, feeding, events, or transport. Staff will onboard you after you get in touch.</p>
+        </a>
+        <a class="tile-pub" href="#donate-info">
+            <div class="icon" aria-hidden="true">💚</div>
+            <h3>Support us</h3>
+            <p>Donations fund food, vaccines, and medical care. Use the contact below; accounting is handled by administrators.</p>
+        </a>
+        <a class="tile-pub" href="login.html">
+            <div class="icon" aria-hidden="true">🔐</div>
+            <h3>Staff login</h3>
+            <p>Adopters and administrators use the same page — pick User or Admin before signing in.</p>
+        </a>
+    </div>
+
+    <div class="public-sections">
+        <section id="adopt-process">
+            <h2>Adoption process</h2>
+            <p>Browse available pets, then sign in as an <strong>Adopter / User</strong> to express interest. Shelter staff review applications (pending → approved) in the secure admin system — you will not see other people’s private records.</p>
+        </section>
+        <section id="shelters">
+            <h2>Partner shelters</h2>
+            <p>Hope Paws Mumbai, Stray Love Pune, and Second Chance Nashik are part of our network. Location and intake details are shared when you apply.</p>
+        </section>
+        <section id="volunteer">
+            <h2>Volunteer</h2>
+            <p>We welcome help with animal care, adoption events, and transport. Email <strong>volunteer@pawhaven.demo</strong> — volunteer rosters and hours are visible only to staff.</p>
+        </section>
+        <section id="donate-info">
+            <h2>Donate</h2>
+            <p>Thank you for supporting rescues. For this demo, use <strong>donate@pawhaven.demo</strong>; logged-in <strong>Admin / Staff</strong> record gifts in the internal donations module.</p>
+        </section>
+    </div>
+
+    
+</body>
+</html>

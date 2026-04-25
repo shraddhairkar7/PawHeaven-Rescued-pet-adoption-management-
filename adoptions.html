@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adoptions — PawHaven</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .app-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            align-items: flex-end;
+            margin-bottom: 1.25rem;
+        }
+        .app-toolbar input,
+        .app-toolbar select {
+            padding: 0.55rem 0.85rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-family: inherit;
+        }
+        .app-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.75rem;
+        }
+        .app-card {
+            background: #fff;
+            border-radius: var(--radius);
+            padding: 1.15rem 1.25rem;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(45, 106, 111, 0.06);
+        }
+        .app-card h3 {
+            font-size: 1rem;
+            margin: 0 0 0.35rem;
+            color: var(--teal);
+        }
+        .app-card p {
+            margin: 0.2rem 0;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+    </style>
+    <script src="app.js"></script>
+    <script src="api.js"></script>
+</head>
+<body class="layout-admin">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">🐾 PawHaven</div>
+        <p class="brand-sub">Adoption workflow</p>
+        <nav>
+            <a href="index.html" data-nav>📊 Dashboard</a>
+            <a href="pets.html" data-nav>🐕 Pets</a>
+            <a href="medical.html" data-nav>🩺 Medical records</a>
+            <a href="adoptions.html" data-nav>📋 Adoptions</a>
+            <a href="shelters.html" data-nav>🏢 Shelters</a>
+            <a href="volunteers.html" data-nav>🤝 Volunteers</a>
+            <a href="volunteer-history.html" data-nav>📜 Volunteer history</a>
+            <a href="donations.html" data-nav>💚 Donations</a>
+            <!-- <a href="home.html" data-nav>🌐 Public site</a> -->
+            <a href="login.html" class="nav-logout" data-nav>🚪 Log out</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <button type="button" class="menu-toggle" onclick="toggleSidebar()" aria-label="Open menu">☰ Menu</button>
+        <h1 class="page-title">Adoption applications</h1>
+        
+        <div class="app-toolbar">
+            <input type="search" id="app-search" placeholder="Search pet, adopter, application ID…" aria-label="Search applications">
+            <select id="app-filter-status" aria-label="Filter by status">
+                <option value="">All statuses</option>
+                <option value="Approved">Approved</option>
+                <option value="Pending">Pending</option>
+                <option value="Rejected">Rejected</option>
+            </select>
+            <select id="app-sort" aria-label="Sort applications">
+                <option value="date-desc">Newest submitted</option>
+                <option value="date-asc">Oldest submitted</option>
+                <option value="pet">Pet name (A–Z)</option>
+                <option value="status">Status (A–Z)</option>
+            </select>
+        </div>
+
+        <p id="app-error" class="page-desc" style="color:#b91c1c;display:none;"></p>
+        <div class="app-card-grid" id="app-grid"></div>
+
+        <div class="form-panel" style="max-width:560px;">
+            <h2 style="font-size:1.1rem;margin-bottom:1rem;font-weight:800;">New application (demo form)</h2>
+            <form id="appForm">
+                <div class="form-group">
+                    <label for="petPick">Pet ID / name</label>
+                    <select id="petPick" required>
+                        <option value="">Loading pets…</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="adopterName">Adopter name</label>
+                    <input type="text" id="adopterName" required>
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" rows="2"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit application</button>
+            </form>
+        </div>
+    </main>
+    <script>
+        (function () {
+            var api = window.PawHavenAPI;
+            var petSel = document.getElementById("petPick");
+            var grid = document.getElementById("app-grid");
+            var searchEl = document.getElementById("app-search");
+            var filterStatus = document.getElementById("app-filter-status");
+            var sortEl = document.getElementById("app-sort");
+            var errEl = document.getElementById("app-error");
+
+            var apps = [];
+            var petMap = {};
+            var adMap = {};
+
+            if (!api || !api.fetchJSON) {
+                if (petSel) petSel.innerHTML = '<option value="">API unavailable</option>';
+                if (grid)
+                    grid.innerHTML =
+                        '<p class="page-desc">API client missing. Open via http://localhost:3000/</p>';
+                return;
+            }
+
+            function badgeClass(status) {
+                var s = (status || "").toLowerCase();
+                if (s.indexOf("approv") !== -1) return "badge ok";
+                if (s.indexOf("pend") !== -1) return "badge warn";
+                return "badge info";
+            }
+
+            function esc(s) {
+                return String(s || "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;");
+            }
+
+            function adopterName(a) {
+                if (!a) return "—";
+                return (
+                    a.Name ||
+                    a.Adopter_Name ||
+                    a.adopter_name ||
+                    a.Full_Name ||
+                    "—"
+                );
+            }
+
+            function matchesSearch(row, q) {
+                if (!q) return true;
+                q = q.toLowerCase();
+                var pid = row.Pet_ID || row.pet_id;
+                var aid = row.Adopter_ID || row.adopter_id;
+                var pet = String(petMap[pid] || pid || "").toLowerCase();
+                var ad = String(adMap[aid] || aid || "").toLowerCase();
+                var apid = String(
+                    row.Application_ID || row.application_id || ""
+                ).toLowerCase();
+                return (
+                    pet.indexOf(q) !== -1 ||
+                    ad.indexOf(q) !== -1 ||
+                    apid.indexOf(q) !== -1
+                );
+            }
+
+            function filteredApps() {
+                var q = (searchEl && searchEl.value) || "";
+                q = q.trim();
+                var st = (filterStatus && filterStatus.value) || "";
+                return apps.filter(function (row) {
+                    if (!matchesSearch(row, q)) return false;
+                    if (st) {
+                        var rs = String(row.Status || row.status || "");
+                        if (rs !== st) return false;
+                    }
+                    return true;
+                });
+            }
+
+            function sortApps(rows, mode) {
+                var list = rows.slice();
+                list.sort(function (a, b) {
+                    var da = String(
+                        a.Application_Date ||
+                            a.Submitted_Date ||
+                            a.application_date ||
+                            ""
+                    );
+                    var db = String(
+                        b.Application_Date ||
+                            b.Submitted_Date ||
+                            b.application_date ||
+                            ""
+                    );
+                    var pa = String(
+                        petMap[a.Pet_ID || a.pet_id] || ""
+                    ).toLowerCase();
+                    var pb = String(
+                        petMap[b.Pet_ID || b.pet_id] || ""
+                    ).toLowerCase();
+                    var sa = String(a.Status || a.status || "").toLowerCase();
+                    var sb = String(b.Status || b.status || "").toLowerCase();
+                    if (mode === "date-asc") return da.localeCompare(db);
+                    if (mode === "date-desc") return db.localeCompare(da);
+                    if (mode === "pet") return pa.localeCompare(pb);
+                    if (mode === "status") return sa.localeCompare(sb);
+                    return 0;
+                });
+                return list;
+            }
+
+            function render() {
+                var mode = (sortEl && sortEl.value) || "date-desc";
+                var rows = sortApps(filteredApps(), mode);
+                grid.innerHTML = "";
+                if (!rows.length) {
+                    grid.innerHTML =
+                        '<p class="page-desc">No applications match. Adjust search or submit one below.</p>';
+                    return;
+                }
+                rows.forEach(function (row) {
+                    var apid =
+                        row.Application_ID || row.application_id || "—";
+                    var pid = row.Pet_ID || row.pet_id;
+                    var adid = row.Adopter_ID || row.adopter_id;
+                    var submitted =
+                        row.Application_Date ||
+                        row.Submitted_Date ||
+                        row.application_date ||
+                        row.submitted_date ||
+                        "—";
+                    var status = row.Status || row.status || "Pending";
+                    var art = document.createElement("article");
+                    art.className = "app-card";
+                    art.innerHTML =
+                        "<h3>" +
+                        esc(petMap[pid] || String(pid)) +
+                        "</h3><p><strong>Adopter:</strong> " +
+                        esc(adMap[adid] || String(adid)) +
+                        "</p><p><strong>Submitted:</strong> " +
+                        esc(submitted) +
+                        "</p><p><strong>Application:</strong> " +
+                        esc(apid) +
+                        '</p><p><span class="' +
+                        badgeClass(status) +
+                        '">' +
+                        esc(status) +
+                        "</span></p>";
+                    grid.appendChild(art);
+                });
+            }
+
+            Promise.all([
+                api.fetchJSON("/applications"),
+                api.fetchJSON("/pets"),
+                api.fetchJSON("/adopters"),
+            ])
+                .then(function (triple) {
+                    apps = triple[0] || [];
+                    var pets = triple[1] || [];
+                    var adopters = triple[2] || [];
+                    petMap = {};
+                    pets.forEach(function (p) {
+                        var id = p.Pet_ID || p.pet_id;
+                        if (id != null)
+                            petMap[id] =
+                                api.petDisplayName(p) + " (" + id + ")";
+                    });
+                    adMap = {};
+                    adopters.forEach(function (a) {
+                        var id = a.Adopter_ID || a.adopter_id;
+                        if (id != null) adMap[id] = adopterName(a);
+                    });
+
+                    petSel.innerHTML = '<option value="">Select pet</option>';
+                    pets.forEach(function (p) {
+                        var id = p.Pet_ID || p.pet_id;
+                        if (id == null) return;
+                        var opt = document.createElement("option");
+                        opt.value = String(id);
+                        opt.textContent =
+                            api.petDisplayName(p) + " — ID " + id;
+                        petSel.appendChild(opt);
+                    });
+                    render();
+                })
+                .catch(function (e) {
+                    if (errEl) {
+                        errEl.style.display = "block";
+                        errEl.textContent = e.message || String(e);
+                    }
+                });
+
+            if (searchEl) {
+                searchEl.addEventListener("input", render);
+                searchEl.addEventListener("search", render);
+            }
+            if (filterStatus)
+                filterStatus.addEventListener("change", render);
+            if (sortEl) sortEl.addEventListener("change", render);
+
+            document.getElementById("appForm").addEventListener("submit", function (e) {
+                e.preventDefault();
+                var petId = (petSel.value || "").trim();
+                var name = document.getElementById("adopterName").value.trim();
+                if (!petId || !name) {
+                    alert("Choose a pet and enter adopter name.");
+                    return;
+                }
+                var email =
+                    "applicant+" + Date.now() + "@pawhaven.local.placeholder";
+                api.fetchJSON("/adopters", {
+                    method: "POST",
+                    body: { Name: name, Email: email, Phone: "" },
+                })
+                    .then(function (res) {
+                        var adopterId = res.Adopter_ID || res.insertId;
+                        return api.fetchJSON("/applications", {
+                            method: "POST",
+                            body: {
+                                Pet_ID: petId,
+                                Adopter_ID: adopterId,
+                                Status: "Pending",
+                                Application_Date: new Date()
+                                    .toISOString()
+                                    .slice(0, 10),
+                                Interview_Date: null,
+                            },
+                        });
+                    })
+                    .then(function () {
+                        alert("Application submitted.");
+                        location.reload();
+                    })
+                    .catch(function (err) {
+                        alert(
+                            "Submit failed.\n" + (err.message || err)
+                        );
+                    });
+            });
+        })();
+    </script>
+</body>
+</html>

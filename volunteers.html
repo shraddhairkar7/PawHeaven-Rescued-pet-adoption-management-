@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volunteers — PawHaven</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .vol-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            margin-bottom: 1.25rem;
+        }
+        .vol-toolbar input,
+        .vol-toolbar select {
+            padding: 0.55rem 0.85rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-family: inherit;
+        }
+        .volunteer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.25rem;
+            margin-top: 0.5rem;
+        }
+        .volunteer-card {
+            background: #fff;
+            border-radius: var(--radius);
+            padding: 1.35rem 1.4rem;
+            text-align: left;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(45, 106, 111, 0.06);
+        }
+        .volunteer-card h3 {
+            font-size: 1.08rem;
+            margin: 0 0 0.35rem;
+            color: var(--teal);
+        }
+        .volunteer-card .contact {
+            font-size: 0.88rem;
+            color: var(--muted);
+            margin-bottom: 1rem;
+        }
+        .vol-section {
+            margin-top: 0.85rem;
+            padding-top: 0.85rem;
+            border-top: 1px solid rgba(45, 106, 111, 0.08);
+        }
+        .vol-section .label {
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--muted);
+            margin-bottom: 0.4rem;
+        }
+        .task-line {
+            font-size: 0.92rem;
+            margin: 0.35rem 0;
+            padding: 0.45rem 0.55rem;
+            background: var(--cream);
+            border-radius: 8px;
+        }
+    </style>
+    <script src="app.js"></script>
+    <script src="api.js"></script>
+</head>
+<body class="layout-admin">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">🐾 PawHaven</div>
+        <p class="brand-sub">Volunteer entity</p>
+        <nav>
+            <a href="index.html" data-nav>📊 Dashboard</a>
+            <a href="pets.html" data-nav>🐕 Pets</a>
+            <a href="medical.html" data-nav>🩺 Medical records</a>
+            <a href="adoptions.html" data-nav>📋 Adoptions</a>
+            <a href="shelters.html" data-nav>🏢 Shelters</a>
+            <a href="volunteers.html" data-nav>🤝 Volunteers</a>
+            <a href="volunteer-history.html" data-nav>📜 Volunteer history</a>
+            <a href="donations.html" data-nav>💚 Donations</a>
+            <!-- <a href="home.html" data-nav>🌐 Public site</a> -->
+            <a href="login.html" class="nav-logout" data-nav>🚪 Log out</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <button type="button" class="menu-toggle" onclick="toggleSidebar()" aria-label="Open menu">☰ Menu</button>
+        <h1 class="page-title">Volunteers</h1>
+
+        <div class="vol-toolbar">
+            <input type="search" id="vol-search" placeholder="Search volunteer name or ID…" aria-label="Search volunteers">
+            <select id="vol-sort" aria-label="Sort volunteers">
+                <option value="name">Name (A–Z)</option>
+                <option value="id">Volunteer ID</option>
+            </select>
+        </div>
+
+        <p id="vol-error" class="page-desc" style="color:#b91c1c;display:none;"></p>
+        <div class="volunteer-grid" id="volunteer-grid"></div>
+    </main>
+    <script>
+        (function () {
+            var api = window.PawHavenAPI;
+            var root = document.getElementById("volunteer-grid");
+            var err = document.getElementById("vol-error");
+            var searchEl = document.getElementById("vol-search");
+            var sortEl = document.getElementById("vol-sort");
+
+            if (!api || !api.fetchJSON) {
+                if (err) {
+                    err.style.display = "block";
+                    err.textContent =
+                        "API client missing. Open this app from http://localhost:3000/ with npm start.";
+                }
+                return;
+            }
+
+            function esc(s) {
+                return String(s || "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;");
+            }
+
+            function vidOf(v) {
+                return String(v.Volunteer_ID || v.volunteer_id || "");
+            }
+
+            function buildAssignments(caresRows, petMap) {
+                var byVol = {};
+                (caresRows || []).forEach(function (c) {
+                    var v = String(c.Volunteer_ID || c.volunteer_id || "");
+                    if (!v) return;
+                    if (!byVol[v]) byVol[v] = [];
+                    var pid = String(c.Pet_ID || c.pet_id || "");
+                    var task = c.Assigned_Task || c.assigned_task || "—";
+                    var start = c.Start_Date || c.start_date || "";
+                    var end = c.End_Date || c.end_date || "";
+                    byVol[v].push({
+                        petId: pid,
+                        petName: petMap[pid] || pid,
+                        task: task,
+                        start: start,
+                        end: end,
+                    });
+                });
+                return byVol;
+            }
+
+            function matchesVol(v, q) {
+                if (!q) return true;
+                q = q.toLowerCase();
+                var name = String(
+                    v.Volunteer_Name || v.Name || v.name || ""
+                ).toLowerCase();
+                var id = vidOf(v).toLowerCase();
+                return name.indexOf(q) !== -1 || id.indexOf(q) !== -1;
+            }
+
+            function render(volunteers, byVol) {
+                var q = (searchEl && searchEl.value) || "";
+                q = q.trim().toLowerCase();
+                var mode = (sortEl && sortEl.value) || "name";
+                var list = (volunteers || []).filter(function (v) {
+                    return matchesVol(v, q);
+                });
+                list.sort(function (a, b) {
+                    if (mode === "id")
+                        return vidOf(a).localeCompare(vidOf(b));
+                    var na = String(
+                        a.Volunteer_Name || a.Name || ""
+                    ).toLowerCase();
+                    var nb = String(
+                        b.Volunteer_Name || b.Name || ""
+                    ).toLowerCase();
+                    return na.localeCompare(nb);
+                });
+
+                root.innerHTML = "";
+                if (!list.length) {
+                    root.innerHTML =
+                        '<p class="page-desc">No volunteers match.</p>';
+                    return;
+                }
+
+                list.forEach(function (v) {
+                    var id = vidOf(v);
+                    var name =
+                        v.Volunteer_Name ||
+                        v.Name ||
+                        v.name ||
+                        "Volunteer";
+                    var contact =
+                        v.Contact || v.Email || v.email || "—";
+                    var assigns = byVol[id] || [];
+
+                    var art = document.createElement("article");
+                    art.className = "volunteer-card";
+                    var tasksHtml = "";
+                    if (!assigns.length) {
+                        tasksHtml =
+                            '<div class="vol-section"><div class="label">Assignments</div><p style="margin:0.35rem 0 0;font-size:0.9rem;color:var(--muted);">No rows in <code>cares_for</code> for this volunteer.</p></div>';
+                    } else {
+                        tasksHtml =
+                            '<div class="vol-section"><div class="label">Tasks &amp; pets (<code>cares_for</code>)</div>';
+                        assigns.forEach(function (a) {
+                            tasksHtml +=
+                                '<div class="task-line"><strong>' +
+                                esc(a.task) +
+                                "</strong><br><span style=\"font-size:0.85rem;color:var(--muted);\">Pet: " +
+                                esc(a.petName) +
+                                " (" +
+                                esc(a.petId) +
+                                ")" +
+                                (a.start
+                                    ? " · " + esc(a.start) + " → " + esc(a.end)
+                                    : "") +
+                                "</span></div>";
+                        });
+                        tasksHtml += "</div>";
+                    }
+
+                    art.innerHTML =
+                        "<h3>" +
+                        esc(name) +
+                        "</h3><p class=\"contact\">ID " +
+                        esc(id) +
+                        " · " +
+                        esc(contact) +
+                        "</p>" +
+                        tasksHtml;
+                    root.appendChild(art);
+                });
+            }
+
+            Promise.all([
+                api.fetchJSON("/volunteers"),
+                api.fetchJSON("/caresfor"),
+                api.fetchJSON("/pets"),
+            ])
+                .then(function (triple) {
+                    var volunteers = triple[0] || [];
+                    var cares = triple[1] || [];
+                    var pets = triple[2] || [];
+                    var petMap = {};
+                    pets.forEach(function (p) {
+                        var id = p.Pet_ID || p.pet_id;
+                        if (id != null)
+                            petMap[String(id)] =
+                                api.petDisplayName(p) || String(id);
+                    });
+                    var byVol = buildAssignments(cares, petMap);
+                    function redraw() {
+                        render(volunteers, byVol);
+                    }
+                    redraw();
+                    if (searchEl) {
+                        searchEl.addEventListener("input", redraw);
+                        searchEl.addEventListener("search", redraw);
+                    }
+                    if (sortEl) sortEl.addEventListener("change", redraw);
+                })
+                .catch(function (e) {
+                    err.style.display = "block";
+                    err.textContent = e.message || String(e);
+                });
+        })();
+    </script>
+</body>
+</html>

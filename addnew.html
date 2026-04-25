@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add pet — PawHaven</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .hint {
+            font-size: 0.82rem;
+            color: var(--muted);
+            margin-top: 0.25rem;
+        }
+        .full-opt {
+            color: #991b1b;
+        }
+    </style>
+    <script src="app.js"></script>
+    <script src="api.js"></script>
+</head>
+<body class="layout-admin">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">🐾 PawHaven</div>
+        <p class="brand-sub">Data entry</p>
+        <nav>
+            <a href="index.html" data-nav>📊 Dashboard</a>
+            <a href="pets.html" data-nav>🐕 Pets</a>
+            <a href="medical.html" data-nav>🩺 Medical records</a>
+            <a href="adoptions.html" data-nav>📋 Adoptions</a>
+            <a href="shelters.html" data-nav>🏢 Shelters</a>
+            <a href="volunteers.html" data-nav>🤝 Volunteers</a>
+            <a href="volunteer-history.html" data-nav>📜 Volunteer history</a>
+            <a href="donations.html" data-nav>💚 Donations</a>
+            <!-- <a href="home.html" data-nav>🌐 Public site</a> -->
+            <a href="login.html" class="nav-logout" data-nav>🚪 Log out</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <button type="button" class="menu-toggle" onclick="toggleSidebar()" aria-label="Open menu">☰ Menu</button>
+        <h1 class="page-title">Add rescued pet</h1>
+        <p class="page-desc">Shelter list shows live occupancy from the database. Full sites cannot accept a new pet — pick another shelter.</p>
+
+        <div class="form-panel">
+            <form id="addPetForm">
+                <div class="form-group">
+                    <label for="petName">Pet name</label>
+                    <input type="text" id="petName" name="petName" required>
+                </div>
+                <div class="form-group">
+                    <label for="shelter">Shelter</label>
+                    <select id="shelter" name="shelter" required>
+                        <option value="">Loading shelters…</option>
+                    </select>
+                    <p class="hint" id="shelter-hint">
+                        Shelters shown in grey are full — you cannot add a pet there; choose another shelter.
+                    </p>
+                    <p class="hint" id="shelter-full-inline" style="display:none;color:#b91c1c;font-weight:700;margin-top:0.35rem;"></p>
+                </div>
+                <div class="form-group">
+                    <label for="gender">Gender (optional)</label>
+                    <select id="gender" name="gender">
+                        <option value="">—</option>
+                        <option>Male</option>
+                        <option>Female</option>
+                        <option>Unknown</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="species">Species</label>
+                    <select id="species" name="species">
+                        <option>Dog</option>
+                        <option>Cat</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="breed">Breed</label>
+                    <input type="text" id="breed" name="breed">
+                </div>
+                <div class="form-group">
+                    <label for="age">Age (years)</label>
+                    <input type="number" id="age" name="age" min="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="adoptionStatus">Adoption status</label>
+                    <select id="adoptionStatus" name="adoptionStatus">
+                        <option>Available</option>
+                        <option>Adopted</option>
+                        <option>Under treatment</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="photoUrl">Pet photo (optional)</label>
+                    <input type="url" id="photoUrl" name="photoUrl" placeholder="https://… (image URL)">
+                    <p class="hint">Paste a link to an image. Leave blank to use the default picture on the pets page.</p>
+                </div>
+                <div class="form-group">
+                    <label for="vaccination">Vaccination status</label>
+                    <select id="vaccination" name="vaccination">
+                        <option>Completed</option>
+                        <option>Pending</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="health">Health notes</label>
+                    <textarea id="health" name="health" rows="3" placeholder="Condition, meds, etc."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="checkup">Last checkup</label>
+                    <input type="date" id="checkup" name="checkup">
+                </div>
+                <button type="submit" class="btn btn-primary" style="width:100%;">Save pet</button>
+            </form>
+        </div>
+    </main>
+    <script>
+        (function () {
+            var api = window.PawHavenAPI;
+            var sel = document.getElementById("shelter");
+            var fullInline = document.getElementById("shelter-full-inline");
+            if (!api || !api.fetchJSON) {
+                if (sel)
+                    sel.innerHTML =
+                        '<option value="">Error: api.js not loaded</option>';
+                return;
+            }
+
+            function sidOf(sh) {
+                return String(sh.Shelter_ID || sh.shelter_id || "");
+            }
+
+            function countPets(pets, sid) {
+                return (pets || []).filter(function (p) {
+                    return String(p.Shelter_ID || p.shelter_id || "") === sid;
+                }).length;
+            }
+
+            function fillShelterSelect(shelters, pets) {
+                sel.innerHTML = '<option value="">Select shelter</option>';
+                (shelters || []).forEach(function (sh) {
+                    var sid = sidOf(sh);
+                    if (!sid) return;
+                    var cap =
+                        sh.Capacity != null ? Number(sh.Capacity) : null;
+                    var c = countPets(pets, sid);
+                    var full = cap != null && c >= cap;
+                    var avail =
+                        cap != null ? Math.max(0, cap - c) : null;
+                    var label =
+                        sid +
+                        " — " +
+                        (api.shelterDisplayName(sh) || "Shelter");
+                    if (cap != null) {
+                        label +=
+                            " (" +
+                            c +
+                            "/" +
+                            cap +
+                            " pets" +
+                            (full ? ", FULL" : ", " + avail + " free") +
+                            ")";
+                    }
+                    var opt = document.createElement("option");
+                    opt.value = sid;
+                    opt.textContent = label;
+                    if (full) {
+                        opt.disabled = true;
+                        opt.className = "full-opt";
+                    }
+                    sel.appendChild(opt);
+                });
+            }
+
+            Promise.all([
+                api.fetchJSON("/shelters"),
+                api.fetchJSON("/pets"),
+            ])
+                .then(function (pair) {
+                    fillShelterSelect(pair[0] || [], pair[1] || []);
+                })
+                .catch(function () {
+                    sel.innerHTML =
+                        '<option value="">Could not load shelters</option>';
+                });
+
+            sel.addEventListener("change", function () {
+                if (fullInline) {
+                    fullInline.style.display = "none";
+                    fullInline.textContent = "";
+                }
+                var opt = sel.options[sel.selectedIndex];
+                if (opt && opt.disabled) {
+                    if (fullInline) {
+                        fullInline.style.display = "block";
+                        fullInline.textContent =
+                            "This shelter is full. Please choose another shelter.";
+                    }
+                    sel.value = "";
+                }
+            });
+
+            document.getElementById("addPetForm").addEventListener("submit", function (e) {
+                e.preventDefault();
+                var form = e.target;
+                var payload = api.buildPetPayload(form);
+                if (!payload.Shelter_ID) {
+                    alert("Choose a shelter.");
+                    return;
+                }
+                if (fullInline) {
+                    fullInline.style.display = "none";
+                    fullInline.textContent = "";
+                }
+                api.fetchJSON("/pets", { method: "POST", body: payload })
+                    .then(function (res) {
+                        var petId = res.Pet_ID || res.insertId;
+                        if (petId) {
+                            return api
+                                .fetchJSON("/medical", {
+                                    method: "POST",
+                                    body: api.buildMedicalPayload(petId, form),
+                                })
+                                .catch(function () {
+                                    return null;
+                                });
+                        }
+                        return null;
+                    })
+                    .then(function () {
+                        alert("Pet saved.");
+                        window.location.href = "pets.html";
+                    })
+                    .catch(function (err) {
+                        var msg = err.message || String(err);
+                        if (/full|409|SHELTER_FULL/i.test(msg)) {
+                            if (fullInline) {
+                                fullInline.style.display = "block";
+                                fullInline.textContent =
+                                    "This shelter is full. Please choose another shelter.";
+                            }
+                            return;
+                        }
+                        if (/staff|403|admin credentials/i.test(msg)) {
+                            alert(
+                                "Only admin staff can add pets. Log in as Admin (Staff ID + password), then try again."
+                            );
+                            return;
+                        }
+                        alert(
+                            "Save failed — check MySQL column names match api.js.\n" +
+                                msg
+                        );
+                    });
+            });
+        })();
+    </script>
+</body>
+</html>

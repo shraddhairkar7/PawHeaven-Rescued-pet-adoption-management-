@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donations — PawHaven</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .don-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            align-items: flex-end;
+            margin-bottom: 1.25rem;
+        }
+        .don-toolbar input,
+        .don-toolbar select {
+            padding: 0.55rem 0.85rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-family: inherit;
+        }
+        .don-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.75rem;
+        }
+        .don-card {
+            background: #fff;
+            border-radius: var(--radius);
+            padding: 1.15rem 1.25rem;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(45, 106, 111, 0.06);
+        }
+        .don-card h3 {
+            font-size: 1rem;
+            margin: 0 0 0.35rem;
+            color: var(--teal);
+        }
+        .don-card p {
+            margin: 0.25rem 0;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+        .don-card .amt {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--ink);
+            margin-top: 0.5rem;
+        }
+    </style>
+    <script src="app.js"></script>
+    <script src="api.js"></script>
+</head>
+<body class="layout-admin">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">🐾 PawHaven</div>
+        <p class="brand-sub">Donor &amp; gifts</p>
+        <nav>
+            <a href="index.html" data-nav>📊 Dashboard</a>
+            <a href="pets.html" data-nav>🐕 Pets</a>
+            <a href="medical.html" data-nav>🩺 Medical records</a>
+            <a href="adoptions.html" data-nav>📋 Adoptions</a>
+            <a href="shelters.html" data-nav>🏢 Shelters</a>
+            <a href="volunteers.html" data-nav>🤝 Volunteers</a>
+            <a href="volunteer-history.html" data-nav>📜 Volunteer history</a>
+            <a href="donations.html" data-nav>💚 Donations</a>
+            <!-- <a href="home.html" data-nav>🌐 Public site</a> -->
+            <a href="login.html" class="nav-logout" data-nav>🚪 Log out</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <button type="button" class="menu-toggle" onclick="toggleSidebar()" aria-label="Open menu">☰ Menu</button>
+        <h1 class="page-title">Donations</h1>
+        
+
+        <div class="don-toolbar">
+            <input type="search" id="don-search" placeholder="Search donor, purpose, ID…" aria-label="Search donations">
+            <select id="don-filter-shelter" aria-label="Filter by shelter">
+                <option value="">All shelters</option>
+            </select>
+            <select id="don-sort" aria-label="Sort donations">
+                <option value="date-desc">Newest first</option>
+                <option value="date-asc">Oldest first</option>
+                <option value="amt-desc">Amount high → low</option>
+                <option value="amt-asc">Amount low → high</option>
+                <option value="donor">Donor name (A–Z)</option>
+            </select>
+        </div>
+
+        <p id="don-error" class="page-desc" style="color:#b91c1c;display:none;"></p>
+        <div class="don-card-grid" id="don-grid"></div>
+
+        <div class="form-panel" style="max-width:520px;">
+            <h2 style="font-size:1.1rem;margin-bottom:1rem;font-weight:800;">Log donation (demo)</h2>
+            <form id="donForm">
+                <div class="form-group">
+                    <label for="donorName">Donor name</label>
+                    <input type="text" id="donorName" required>
+                </div>
+                <div class="form-group">
+                    <label for="amount">Amount (₹)</label>
+                    <input type="number" id="amount" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="donShelter">Shelter</label>
+                    <select id="donShelter" required>
+                        <option value="">Loading…</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="designation">Designation</label>
+                    <select id="designation">
+                        <option>General</option>
+                        <option>Medical fund</option>
+                        <option>Food &amp; supplies</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Record</button>
+            </form>
+        </div>
+    </main>
+    <script>
+        (function () {
+            var api = window.PawHavenAPI;
+            var grid = document.getElementById("don-grid");
+            var shSel = document.getElementById("donShelter");
+            var filterShelter = document.getElementById("don-filter-shelter");
+            var searchEl = document.getElementById("don-search");
+            var sortEl = document.getElementById("don-sort");
+            var errEl = document.getElementById("don-error");
+
+            var donations = [];
+            var donorMap = {};
+            var shelterMap = {};
+
+            if (!api || !api.fetchJSON) {
+                if (grid)
+                    grid.innerHTML =
+                        '<p class="page-desc">API client missing. Open via http://localhost:3000/</p>';
+                return;
+            }
+
+            function esc(s) {
+                return String(s || "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;");
+            }
+
+            function donorDisplay(d) {
+                if (!d) return "—";
+                return (
+                    d.Name ||
+                    d.Donor_Name ||
+                    d.donor_name ||
+                    "Donor " + (d.Donor_ID || d.donor_id)
+                );
+            }
+
+            function matchesSearch(row, q) {
+                if (!q) return true;
+                q = q.toLowerCase();
+                var did = row.Donor_ID || row.donor_id;
+                var dname = (donorMap[did] || String(did || "")).toLowerCase();
+                var purpose = String(
+                    row.Purpose || row.Designation || ""
+                ).toLowerCase();
+                var id = String(
+                    row.Donation_ID || row.donation_id || ""
+                ).toLowerCase();
+                return (
+                    dname.indexOf(q) !== -1 ||
+                    purpose.indexOf(q) !== -1 ||
+                    id.indexOf(q) !== -1
+                );
+            }
+
+            function filteredRows() {
+                var q = (searchEl && searchEl.value) || "";
+                q = q.trim();
+                var sid = (filterShelter && filterShelter.value) || "";
+                return donations.filter(function (row) {
+                    if (!matchesSearch(row, q)) return false;
+                    if (sid) {
+                        var rs = String(row.Shelter_ID || row.shelter_id || "");
+                        if (rs !== sid) return false;
+                    }
+                    return true;
+                });
+            }
+
+            function sortRows(rows, mode) {
+                var list = rows.slice();
+                list.sort(function (a, b) {
+                    var da = String(a.Date || a.date || "");
+                    var db = String(b.Date || b.date || "");
+                    var aa = Number(a.Amount != null ? a.Amount : a.amount) || 0;
+                    var ab = Number(b.Amount != null ? b.Amount : b.amount) || 0;
+                    var na = (
+                        donorMap[a.Donor_ID || a.donor_id] || ""
+                    ).toLowerCase();
+                    var nb = (
+                        donorMap[b.Donor_ID || b.donor_id] || ""
+                    ).toLowerCase();
+                    if (mode === "date-asc") return da.localeCompare(db);
+                    if (mode === "date-desc") return db.localeCompare(da);
+                    if (mode === "amt-asc") return aa - ab;
+                    if (mode === "amt-desc") return ab - aa;
+                    if (mode === "donor") return na.localeCompare(nb);
+                    return 0;
+                });
+                return list;
+            }
+
+            function render() {
+                var mode = (sortEl && sortEl.value) || "date-desc";
+                var rows = sortRows(filteredRows(), mode);
+                grid.innerHTML = "";
+                if (!rows.length) {
+                    grid.innerHTML =
+                        '<p class="page-desc">No donations match. Clear filters or log the first gift below.</p>';
+                    return;
+                }
+                rows.forEach(function (row, idx) {
+                    var did = row.Donor_ID || row.donor_id;
+                    var amt = row.Amount != null ? row.Amount : row.amount;
+                    var dt =
+                        row.Donation_Date ||
+                        row.donation_date ||
+                        row.Date ||
+                        "—";
+                    var des =
+                        row.Designation ||
+                        row.Purpose ||
+                        row.designation ||
+                        "—";
+                    var sid = row.Shelter_ID || row.shelter_id;
+                    var sh = shelterMap[sid] || sid;
+                    var art = document.createElement("article");
+                    art.className = "don-card";
+                    art.innerHTML =
+                        "<h3>" +
+                        esc(donorMap[did] || did) +
+                        "</h3><p>" +
+                        esc(sh) +
+                        "</p><p>" +
+                        esc(des) +
+                        "</p><p style=\"font-size:0.8rem;\">" +
+                        esc(dt) +
+                        " · " +
+                        esc(row.Donation_ID || row.donation_id || "#" + (idx + 1)) +
+                        '</p><div class="amt">₹ ' +
+                        esc(
+                            amt != null
+                                ? Number(amt).toLocaleString("en-IN")
+                                : "—"
+                        ) +
+                        "</div>";
+                    grid.appendChild(art);
+                });
+            }
+
+            Promise.all([
+                api.fetchJSON("/donations"),
+                api.fetchJSON("/donors"),
+                api.fetchJSON("/shelters"),
+            ])
+                .then(function (triple) {
+                    donations = triple[0] || [];
+                    var donors = triple[1] || [];
+                    var shelters = triple[2] || [];
+                    donorMap = {};
+                    donors.forEach(function (d) {
+                        var id = d.Donor_ID || d.donor_id;
+                        if (id != null) donorMap[id] = donorDisplay(d);
+                    });
+                    shelterMap = {};
+                    shSel.innerHTML = '<option value="">Select shelter</option>';
+                    if (filterShelter) {
+                        filterShelter.innerHTML =
+                            '<option value="">All shelters</option>';
+                    }
+                    shelters.forEach(function (sh) {
+                        var id = sh.Shelter_ID || sh.shelter_id;
+                        if (id == null) return;
+                        shelterMap[id] =
+                            api.shelterDisplayName(sh) || "Shelter " + id;
+                        var opt = document.createElement("option");
+                        opt.value = String(id);
+                        opt.textContent = shelterMap[id];
+                        shSel.appendChild(opt);
+                        if (filterShelter) {
+                            var o2 = document.createElement("option");
+                            o2.value = String(id);
+                            o2.textContent = shelterMap[id];
+                            filterShelter.appendChild(o2);
+                        }
+                    });
+                    render();
+                })
+                .catch(function (e) {
+                    if (errEl) {
+                        errEl.style.display = "block";
+                        errEl.textContent = e.message || String(e);
+                    }
+                });
+
+            if (searchEl) {
+                searchEl.addEventListener("input", render);
+                searchEl.addEventListener("search", render);
+            }
+            if (filterShelter)
+                filterShelter.addEventListener("change", render);
+            if (sortEl) sortEl.addEventListener("change", render);
+
+            document.getElementById("donForm").addEventListener("submit", function (e) {
+                e.preventDefault();
+                var name = document.getElementById("donorName").value.trim();
+                var amount = document.getElementById("amount").value;
+                var des = document.getElementById("designation").value;
+                var sid = (shSel.value || "").trim();
+                if (!name || !amount || !sid) {
+                    alert("Fill donor name, amount, and shelter.");
+                    return;
+                }
+                api.fetchJSON("/donors", {
+                    method: "POST",
+                    body: {
+                        Donor_Name: name,
+                        Email: "donor+" + Date.now() + "@pawhaven.local",
+                    },
+                })
+                    .then(function (res) {
+                        var donorId = res.Donor_ID || res.insertId;
+                        return api.fetchJSON("/donations", {
+                            method: "POST",
+                            body: {
+                                Donor_ID: donorId,
+                                Shelter_ID: sid,
+                                Amount: Number(amount),
+                                Date: new Date().toISOString().slice(0, 10),
+                                Purpose: des,
+                            },
+                        });
+                    })
+                    .then(function () {
+                        alert("Donation recorded.");
+                        location.reload();
+                    })
+                    .catch(function (err) {
+                        alert(
+                            "Could not record donation.\n" +
+                                (err.message || err)
+                        );
+                    });
+            });
+        })();
+    </script>
+</body>
+</html>

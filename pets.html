@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pets — PawHaven</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .top-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        .search-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            margin-bottom: 1.25rem;
+        }
+        .search-bar input,
+        .search-bar select {
+            padding: 0.55rem 0.85rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-family: inherit;
+        }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-mini {
+            background: #fff;
+            padding: 1rem;
+            border-radius: 14px;
+            text-align: center;
+            box-shadow: var(--card-shadow);
+            font-weight: 800;
+            color: var(--teal);
+            border: 1px solid rgba(45, 106, 111, 0.06);
+        }
+        .stat-mini small {
+            display: block;
+            font-weight: 600;
+            color: var(--muted);
+            font-size: 0.75rem;
+            margin-top: 0.35rem;
+        }
+        .pet-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 1.25rem;
+        }
+        .pet-card {
+            background: #fff;
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(45, 106, 111, 0.06);
+            position: relative;
+        }
+        .pet-card img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+        }
+        .pet-card .status-tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 0.35rem 0.65rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: #fff;
+            background: #059669;
+        }
+        .pet-card .status-tag.care {
+            background: #d97706;
+        }
+        .pet-card .body {
+            padding: 1rem 1.1rem 1.15rem;
+        }
+        .pet-card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+        }
+        .pet-card p.meta {
+            color: var(--muted);
+            font-size: 0.88rem;
+            margin-bottom: 0.75rem;
+        }
+        .pet-card .status-tag {
+            z-index: 2;
+            pointer-events: none;
+        }
+        .pet-card .body {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+    <script src="app.js"></script>
+    <script src="api.js"></script>
+</head>
+<body class="layout-admin" data-page="pets">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">🐾 PawHaven</div>
+        <p class="brand-sub">Shelter operations</p>
+        <nav>
+            <a href="index.html" data-nav>📊 Dashboard</a>
+            <a href="pets.html" data-nav>🐕 Pets</a>
+            <a href="medical.html" data-nav>🩺 Medical records</a>
+            <a href="adoptions.html" data-nav>📋 Adoptions</a>
+            <a href="shelters.html" data-nav>🏢 Shelters</a>
+            <a href="volunteers.html" data-nav>🤝 Volunteers</a>
+            <a href="volunteer-history.html" data-nav>📜 Volunteer history</a>
+            <a href="donations.html" data-nav>💚 Donations</a>
+            <!-- <a href="reports.html" data-nav>📈 Reports</a> -->
+            <!-- <a href="home.html" data-nav>🌐 Public site</a> -->
+            <a href="login.html" class="nav-logout" data-nav>🚪 Log out</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <button type="button" class="menu-toggle" onclick="toggleSidebar()" aria-label="Open menu">☰ Menu</button>
+        <div class="top-bar">
+            <div>
+                <h1 class="page-title" id="pets-heading">Pet management</h1>
+                <!-- <p  class="page-desc" id="pets-desc">Pet entity: ID, name, species, breed, age, adoption status, shelter.</p> -->
+            </div>
+            <a class="btn btn-primary" href="addnew.html" id="pets-add-btn">+ Add new pet</a>
+        </div>
+
+        <div class="search-bar">
+            <input type="search" id="pet-search" placeholder="Search by name, breed, or ID…" aria-label="Search pets">
+            <select id="pet-filter-status" aria-label="Filter by status">
+                <option value="all">All statuses</option>
+                <option value="available">Available</option>
+                <option value="adopted">Adopted</option>
+                <option value="treatment">Under treatment</option>
+            </select>
+            <select id="pet-filter-species" aria-label="Filter by species">
+                <option value="all">All species</option>
+                <option value="Dog">Dog</option>
+                <option value="Cat">Cat</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+
+        <div class="stats-row" id="pets-stats-row">
+            <div class="stat-mini">6 <small>Total pets</small></div>
+            <div class="stat-mini">3 <small>Available</small></div>
+            <div class="stat-mini">1 <small>Adopted</small></div>
+            <div class="stat-mini">1 <small>Under treatment</small></div>
+        </div>
+
+        <p id="pets-load-error" class="page-desc" style="color:#b91c1c;display:none;margin-bottom:1rem;"></p>
+        <div class="pet-grid" id="pet-grid"></div>
+    </main>
+    <script>
+        (function () {
+            var api = window.PawHavenAPI;
+            var grid = document.getElementById("pet-grid");
+            var errEl = document.getElementById("pets-load-error");
+            var statsRow = document.getElementById("pets-stats-row");
+            var searchEl = document.getElementById("pet-search");
+            var filterStatus = document.getElementById("pet-filter-status");
+            var filterSpecies = document.getElementById("pet-filter-species");
+
+            var allPets = [];
+            var shelterMap = {};
+
+            if (!api || !api.fetchJSON) {
+                if (errEl) {
+                    errEl.style.display = "block";
+                    errEl.textContent =
+                        "Could not load the API client (api.js). Check script tags.";
+                }
+                return;
+            }
+
+            function adoptionStatusOf(row) {
+                if (api.petAdoptionStatus) return api.petAdoptionStatus(row) || "—";
+                return (
+                    row.Adoption_status ||
+                    row.Adoption_Status ||
+                    row.adoption_status ||
+                    "—"
+                );
+            }
+
+            function sortPetsById(rows) {
+                return (Array.isArray(rows) ? rows : []).slice().sort(function (a, b) {
+                    var ida = String(a.Pet_ID || a.pet_id || "");
+                    var idb = String(b.Pet_ID || b.pet_id || "");
+                    var na = parseInt(ida.replace(/^P/i, ""), 10);
+                    var nb = parseInt(idb.replace(/^P/i, ""), 10);
+                    if (
+                        !isNaN(na) &&
+                        !isNaN(nb) &&
+                        ida.charAt(0).toUpperCase() === "P" &&
+                        idb.charAt(0).toUpperCase() === "P"
+                    )
+                        return na - nb;
+                    return ida.localeCompare(idb);
+                });
+            }
+
+            function matchesSearch(row, q) {
+                if (!q) return true;
+                q = q.toLowerCase();
+                var name = (api.petDisplayName(row) || "").toLowerCase();
+                var breed = String(row.Breed || row.breed || "").toLowerCase();
+                var pid = String(row.Pet_ID || row.pet_id || "").toLowerCase();
+                var species = String(row.Species || row.species || "").toLowerCase();
+                return (
+                    name.indexOf(q) !== -1 ||
+                    breed.indexOf(q) !== -1 ||
+                    pid.indexOf(q) !== -1 ||
+                    species.indexOf(q) !== -1
+                );
+            }
+
+            function matchesStatusFilter(row, value) {
+                if (!value || value === "all") return true;
+                var s = (adoptionStatusOf(row) || "").toLowerCase();
+                if (value === "available") return s.indexOf("available") !== -1;
+                if (value === "adopted") return s.indexOf("adopt") !== -1;
+                if (value === "treatment")
+                    return (
+                        s.indexOf("treatment") !== -1 ||
+                        s.indexOf("care") !== -1 ||
+                        s.indexOf("under") !== -1
+                    );
+                return true;
+            }
+
+            function matchesSpeciesFilter(row, value) {
+                if (!value || value === "all") return true;
+                var sp = String(row.Species || row.species || "");
+                if (value === "Other") {
+                    var low = sp.toLowerCase();
+                    return (
+                        low !== "dog" &&
+                        low !== "cat" &&
+                        sp !== ""
+                    );
+                }
+                return sp.toLowerCase() === value.toLowerCase();
+            }
+
+            function getFilteredPets() {
+                var q = (searchEl && searchEl.value) || "";
+                q = q.trim();
+                var st = (filterStatus && filterStatus.value) || "all";
+                var spec = (filterSpecies && filterSpecies.value) || "all";
+                return allPets.filter(function (row) {
+                    return (
+                        matchesSearch(row, q) &&
+                        matchesStatusFilter(row, st) &&
+                        matchesSpeciesFilter(row, spec)
+                    );
+                });
+            }
+
+            function applyFilters() {
+                renderPets(getFilteredPets(), shelterMap);
+            }
+
+            function placeholderImg(species) {
+                var s = (species || "").toLowerCase();
+                if (s.indexOf("cat") !== -1)
+                    return "https://images.unsplash.com/photo-1595433562696-90c1a5c6f78b?w=400";
+                return "https://images.unsplash.com/photo-1558788353-f76d92427f16?w=400";
+            }
+
+            function statusClass(status) {
+                var t = (status || "").toLowerCase();
+                if (t.indexOf("treatment") !== -1 || t.indexOf("care") !== -1)
+                    return "status-tag care";
+                return "status-tag";
+            }
+
+            function renderPets(rows, map) {
+                grid.innerHTML = "";
+                if (!rows || !rows.length) {
+                    if (allPets.length) {
+                        grid.innerHTML =
+                            '<p class="page-desc">No pets match your search or filters. Try clearing the search box or setting filters to “All”.</p>';
+                    } else {
+                        grid.innerHTML =
+                            '<p class="page-desc">No pets in the database yet. Add one from <a href="addnew.html">Add pet</a>.</p>';
+                    }
+                    if (statsRow && statsRow.style.display !== "none") {
+                        var z = statsRow.querySelectorAll(".stat-mini");
+                        if (z[0]) z[0].innerHTML = "0 <small>Total pets</small>";
+                        if (z[1]) z[1].innerHTML = "0 <small>Available</small>";
+                        if (z[2]) z[2].innerHTML = "0 <small>Adopted</small>";
+                        if (z[3]) z[3].innerHTML = "0 <small>Under treatment</small>";
+                    }
+                    return;
+                }
+                var available = 0;
+                var adopted = 0;
+                var care = 0;
+                rows.forEach(function (row) {
+                    var name = api.petDisplayName(row) || "Pet";
+                    var status = adoptionStatusOf(row);
+                    var st = (status || "").toLowerCase();
+                    if (st.indexOf("available") !== -1) available++;
+                    else if (st.indexOf("adopt") !== -1) adopted++;
+                    else care++;
+                    var sid = row.Shelter_ID || row.shelter_id;
+                    var shelterLabel =
+                        (map && sid && map[sid]) || "Shelter #" + sid;
+                    var species = row.Species || row.species || "";
+                    var breed = row.Breed || row.breed || "";
+                    var age = row.Age != null ? row.Age : row.age;
+                    var img =
+                        row.Image_URL ||
+                        row.image_url ||
+                        placeholderImg(species);
+                    var pid = row.Pet_ID || row.pet_id;
+                    var art = document.createElement("article");
+                    art.className = "pet-card";
+                    art.innerHTML =
+                        '<span class="' +
+                        statusClass(status) +
+                        '">' +
+                        escapeHtml(status) +
+                        "</span>" +
+                        '<img src="' +
+                        escapeHtml(img) +
+                        '" alt="">' +
+                        '<div class="body"><h3>' +
+                        escapeHtml(name) +
+                        "</h3><p class=\"meta\">" +
+                        escapeHtml(
+                            [breed, age != null ? "Age " + age : "", shelterLabel]
+                                .filter(Boolean)
+                                .join(" · ")
+                        ) +
+                        '</p><a class="btn btn-outline btn-sm" href="medical.html?pet=' +
+                        encodeURIComponent(String(pid || "")) +
+                        '">Medical history</a></div>';
+                    grid.appendChild(art);
+                });
+
+                if (statsRow && statsRow.style.display !== "none") {
+                    var cells = statsRow.querySelectorAll(".stat-mini");
+                    if (cells[0]) cells[0].innerHTML = rows.length + " <small>Total pets</small>";
+                    if (cells[1]) cells[1].innerHTML = available + " <small>Available</small>";
+                    if (cells[2]) cells[2].innerHTML = adopted + " <small>Adopted</small>";
+                    if (cells[3]) cells[3].innerHTML = care + " <small>Under treatment</small>";
+                }
+            }
+
+            function escapeHtml(s) {
+                if (s == null) return "";
+                return String(s)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/"/g, "&quot;");
+            }
+
+            Promise.all([
+                api.fetchJSON("/pets").catch(function () {
+                    return [];
+                }),
+                api.fetchJSON("/shelters").catch(function () {
+                    return [];
+                }),
+            ])
+                .then(function (pair) {
+                    var pets = pair[0];
+                    var shelters = pair[1];
+                    shelterMap = {};
+                    (shelters || []).forEach(function (sh) {
+                        var id = sh.Shelter_ID || sh.shelter_id;
+                        if (id != null)
+                            shelterMap[id] =
+                                api.shelterDisplayName(sh) || "Shelter " + id;
+                    });
+                    allPets = sortPetsById(Array.isArray(pets) ? pets : []);
+                    applyFilters();
+                })
+                .catch(function (e) {
+                    errEl.style.display = "block";
+                    errEl.textContent =
+                        "Could not load pets. Start the server (npm start) and ensure MySQL is running. " +
+                        (e.message || e);
+                });
+
+            if (searchEl) {
+                searchEl.addEventListener("input", applyFilters);
+                searchEl.addEventListener("search", applyFilters);
+            }
+            if (filterStatus) filterStatus.addEventListener("change", applyFilters);
+            if (filterSpecies)
+                filterSpecies.addEventListener("change", applyFilters);
+        })();
+    </script>
+</body>
+</html>

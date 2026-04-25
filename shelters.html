@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shelters — PawHaven</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .shelter-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            margin-bottom: 1.25rem;
+        }
+        .shelter-toolbar input,
+        .shelter-toolbar select {
+            padding: 0.55rem 0.85rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-family: inherit;
+        }
+        .shelter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.25rem;
+        }
+        .shelter-card {
+            background: #fff;
+            border-radius: var(--radius);
+            padding: 1.35rem 1.45rem;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(45, 106, 111, 0.06);
+        }
+        .shelter-card h3 {
+            font-size: 1.15rem;
+            margin: 0 0 0.35rem;
+            color: var(--teal);
+        }
+        .shelter-card .addr {
+            font-size: 0.9rem;
+            color: var(--muted);
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+        .shelter-card .phone {
+            font-size: 0.88rem;
+            margin-bottom: 0.85rem;
+        }
+        .occ-bar {
+            height: 10px;
+            border-radius: 999px;
+            background: #e5e7eb;
+            overflow: hidden;
+            margin: 0.5rem 0 0.35rem;
+        }
+        .occ-bar > span {
+            display: block;
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #059669, #34d399);
+        }
+        .occ-bar.full > span {
+            background: linear-gradient(90deg, #b91c1c, #f87171);
+        }
+        .occ-meta {
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 0.75rem;
+        }
+        .full-banner {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #991b1b;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            padding: 0.55rem 0.65rem;
+            border-radius: 10px;
+            margin-bottom: 0.75rem;
+        }
+        .shelter-pets-toggle {
+            margin-top: 0.85rem;
+        }
+        .shelter-pets-panel {
+            margin-top: 0.75rem;
+            padding: 0.85rem 0.95rem;
+            border-radius: 12px;
+            background: var(--cream);
+            border: 1px solid rgba(45, 106, 111, 0.1);
+        }
+        .shelter-pets-panel[hidden] {
+            display: none !important;
+        }
+        .shelter-pet-search {
+            width: 100%;
+            max-width: 100%;
+            margin: 0.45rem 0 0.65rem;
+            padding: 0.5rem 0.65rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 0.88rem;
+        }
+        .shelter-pet-ul {
+            margin: 0;
+            padding-left: 1.15rem;
+            font-size: 0.88rem;
+            color: var(--ink);
+        }
+        .shelter-pet-ul li {
+            margin: 0.25rem 0;
+        }
+        .shelter-pet-empty {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin: 0.25rem 0 0;
+        }
+    </style>
+    <script src="app.js"></script>
+    <script src="api.js"></script>
+</head>
+<body class="layout-admin">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">🐾 PawHaven</div>
+        <p class="brand-sub">Multi-shelter network</p>
+        <nav>
+            <a href="index.html" data-nav>📊 Dashboard</a>
+            <a href="pets.html" data-nav>🐕 Pets</a>
+            <a href="medical.html" data-nav>🩺 Medical records</a>
+            <a href="adoptions.html" data-nav>📋 Adoptions</a>
+            <a href="shelters.html" data-nav>🏢 Shelters</a>
+            <a href="volunteers.html" data-nav>🤝 Volunteers</a>
+            <a href="volunteer-history.html" data-nav>📜 Volunteer history</a>
+            <a href="donations.html" data-nav>💚 Donations</a>
+            <!-- <a href="home.html" data-nav>🌐 Public site</a> -->
+            <a href="login.html" class="nav-logout" data-nav>🚪 Log out</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <button type="button" class="menu-toggle" onclick="toggleSidebar()" aria-label="Open menu">☰ Menu</button>
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:1rem;margin-bottom:0.5rem;">
+            <h1 class="page-title" style="margin:0;">Animal shelters</h1>
+            <a class="btn btn-primary" href="addnew.html">+ Add pet</a>
+        </div>
+        <p class="page-desc">Capacity and current pets come from <code>shelter</code> and <code>pet</code>. If a site is full, register the animal at another shelter.</p>
+
+        <div class="shelter-toolbar">
+            <input type="search" id="sh-search" placeholder="Search name, address, ID…" aria-label="Search shelters">
+            <select id="sh-sort" aria-label="Sort shelters">
+                <option value="name">Name (A–Z)</option>
+                <option value="id">Shelter ID</option>
+                <option value="free">Most free space first</option>
+            </select>
+        </div>
+
+        <p id="shelters-error" class="page-desc" style="color:#b91c1c;display:none;"></p>
+        <div class="shelter-grid" id="shelter-grid"></div>
+    </main>
+    <script>
+        (function () {
+            var api = window.PawHavenAPI;
+            var root = document.getElementById("shelter-grid");
+            var err = document.getElementById("shelters-error");
+            var searchEl = document.getElementById("sh-search");
+            var sortEl = document.getElementById("sh-sort");
+
+            if (!api || !api.fetchJSON) {
+                if (err) {
+                    err.style.display = "block";
+                    err.textContent =
+                        "API client missing. Open this app from http://localhost:3000/ with npm start.";
+                }
+                return;
+            }
+
+            function esc(s) {
+                return String(s || "")
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;");
+            }
+
+            function sidOf(sh) {
+                return String(sh.Shelter_ID || sh.shelter_id || "");
+            }
+
+            function petsAt(pets, sid) {
+                return (pets || []).filter(function (p) {
+                    return String(p.Shelter_ID || p.shelter_id || "") === sid;
+                });
+            }
+
+            function matchesSh(sh, q) {
+                if (!q) return true;
+                q = q.toLowerCase();
+                var title = (
+                    api.shelterDisplayName(sh) || ""
+                ).toLowerCase();
+                var addr = String(
+                    sh.Address || sh.address || ""
+                ).toLowerCase();
+                var id = sidOf(sh).toLowerCase();
+                return (
+                    title.indexOf(q) !== -1 ||
+                    addr.indexOf(q) !== -1 ||
+                    id.indexOf(q) !== -1
+                );
+            }
+
+            function render(summaryRows, pets) {
+                var q = (searchEl && searchEl.value) || "";
+                q = q.trim().toLowerCase();
+                var mode = (sortEl && sortEl.value) || "name";
+                var rows = (summaryRows || []).filter(function (sh) {
+                    return matchesSh(sh, q);
+                });
+                rows.sort(function (a, b) {
+                    if (mode === "id") return sidOf(a).localeCompare(sidOf(b));
+                    if (mode === "free") {
+                        var fa = Number(a.Available_Slots);
+                        var fb = Number(b.Available_Slots);
+                        if (!isNaN(fa) && !isNaN(fb) && fa !== fb)
+                            return fb - fa;
+                    }
+                    var na = (
+                        api.shelterDisplayName(a) || ""
+                    ).toLowerCase();
+                    var nb = (
+                        api.shelterDisplayName(b) || ""
+                    ).toLowerCase();
+                    return na.localeCompare(nb);
+                });
+
+                root.innerHTML = "";
+                if (!rows.length) {
+                    root.innerHTML =
+                        '<p class="page-desc">No shelters match. Import <code>animal_shelter.sql</code> or run <code>npm run init-db</code>.</p>';
+                    return;
+                }
+
+                rows.forEach(function (sh) {
+                    var sid = sidOf(sh);
+                    var title = api.shelterDisplayName(sh) || "Shelter";
+                    var loc =
+                        sh.Address ||
+                        sh.address ||
+                        "";
+                    var phone =
+                        sh.Phone || sh.phone || "—";
+                    var cap = sh.Capacity != null ? Number(sh.Capacity) : null;
+                    var cnt = Number(sh.Pet_Count) || 0;
+                    var avail = sh.Available_Slots;
+                    var full = !!sh.Is_Full;
+                    var pct =
+                        cap != null && cap > 0
+                            ? Math.min(100, Math.round((cnt / cap) * 100))
+                            : 0;
+
+                    var plist = petsAt(pets, sid);
+
+                    var occText =
+                        cap != null
+                            ? cnt +
+                              " / " +
+                              cap +
+                              " pets" +
+                              (avail != null && !isNaN(Number(avail))
+                                  ? " · " + avail + " space(s) left"
+                                  : "")
+                            : cnt + " pets (capacity not set)";
+
+                    var art = document.createElement("article");
+                    art.className = "shelter-card";
+                    art.innerHTML =
+                        "<h3>" +
+                        esc(title) +
+                        "</h3>" +
+                        (full
+                            ? '<div class="full-banner">This shelter is full. Add new pets to another shelter until a slot opens.</div>'
+                            : "") +
+                        '<p class="addr">' +
+                        esc(loc || "—") +
+                        '</p><p class="phone">📞 ' +
+                        esc(phone) +
+                        "</p>" +
+                        '<div class="occ-bar' +
+                        (full ? " full" : "") +
+                        '"><span style="width:' +
+                        esc(String(pct)) +
+                        '%"></span></div>' +
+                        '<p class="occ-meta">' +
+                        esc(occText) +
+                        "</p>" +
+                        '<button type="button" class="btn btn-outline btn-sm shelter-pets-toggle js-shelter-pets-btn" aria-expanded="false">See pets in this shelter</button>' +
+                        '<div class="shelter-pets-panel" hidden>' +
+                        '<span class="label" style="display:block;font-size:0.72rem;font-weight:800;text-transform:uppercase;color:var(--muted);letter-spacing:0.04em;">Search pets in this shelter</span>' +
+                        '<input type="search" class="shelter-pet-search" placeholder="Name, ID, breed, status…" aria-label="Search pets in ' +
+                        esc(title) +
+                        '">' +
+                        '<ul class="shelter-pet-ul"></ul>' +
+                        "</div>" +
+                        '<p style="margin-top:0.85rem;font-size:0.82rem;color:var(--muted);">Shelter ID: <strong>' +
+                        esc(sid) +
+                        "</strong> — use this when adding a pet.</p>";
+
+                    root.appendChild(art);
+
+                    var panel = art.querySelector(".shelter-pets-panel");
+                    var btn = art.querySelector(".js-shelter-pets-btn");
+                    var searchIn = art.querySelector(".shelter-pet-search");
+                    var ul = art.querySelector(".shelter-pet-ul");
+
+                    function petMatchesQuery(p, q) {
+                        if (!q) return true;
+                        q = q.toLowerCase();
+                        var name = (
+                            api.petDisplayName(p) || ""
+                        ).toLowerCase();
+                        var pid = String(
+                            p.Pet_ID || p.pet_id || ""
+                        ).toLowerCase();
+                        var br = String(p.Breed || "").toLowerCase();
+                        var sp = String(p.Species || "").toLowerCase();
+                        var st = String(
+                            p.Adoption_status ||
+                                p.adoption_status ||
+                                ""
+                        ).toLowerCase();
+                        return (
+                            name.indexOf(q) !== -1 ||
+                            pid.indexOf(q) !== -1 ||
+                            br.indexOf(q) !== -1 ||
+                            sp.indexOf(q) !== -1 ||
+                            st.indexOf(q) !== -1
+                        );
+                    }
+
+                    function renderShelterPetList(filterVal) {
+                        ul.innerHTML = "";
+                        var filtered = plist.filter(function (p) {
+                            return petMatchesQuery(p, filterVal);
+                        });
+                        if (!plist.length) {
+                            ul.innerHTML =
+                                '<li class="shelter-pet-empty">No pets assigned to this shelter.</li>';
+                            return;
+                        }
+                        if (!filtered.length) {
+                            ul.innerHTML =
+                                '<li class="shelter-pet-empty">No pets match your search.</li>';
+                            return;
+                        }
+                        filtered.forEach(function (p) {
+                            var name = api.petDisplayName(p) || "Pet";
+                            var pid = p.Pet_ID || p.pet_id;
+                            var st =
+                                p.Adoption_status ||
+                                p.adoption_status ||
+                                "";
+                            var li = document.createElement("li");
+                            li.textContent =
+                                name +
+                                " (" +
+                                pid +
+                                ")" +
+                                (st ? " — " + st : "");
+                            ul.appendChild(li);
+                        });
+                    }
+
+                    btn.addEventListener("click", function () {
+                        var open = panel.hidden;
+                        panel.hidden = !open;
+                        var expanded = !panel.hidden;
+                        btn.setAttribute(
+                            "aria-expanded",
+                            expanded ? "true" : "false"
+                        );
+                        btn.textContent = expanded
+                            ? "Hide pets in this shelter"
+                            : "See pets in this shelter";
+                        if (expanded) {
+                            renderShelterPetList(
+                                (searchIn && searchIn.value) || ""
+                            );
+                            if (searchIn) searchIn.focus();
+                        }
+                    });
+                    if (searchIn) {
+                        searchIn.addEventListener("input", function () {
+                            if (panel.hidden) return;
+                            renderShelterPetList(searchIn.value);
+                        });
+                        searchIn.addEventListener("search", function () {
+                            if (panel.hidden) return;
+                            renderShelterPetList(searchIn.value);
+                        });
+                    }
+                });
+            }
+
+            var cacheSumm = [];
+            var cachePets = [];
+
+            function mergeSheltersAndPets(shelters, pets) {
+                return (shelters || []).map(function (sh) {
+                    var sid = sidOf(sh);
+                    var c = petsAt(pets, sid).length;
+                    var cap =
+                        sh.Capacity != null ? Number(sh.Capacity) : null;
+                    return {
+                        ...sh,
+                        Pet_Count: c,
+                        Available_Slots:
+                            cap != null ? Math.max(0, cap - c) : null,
+                        Is_Full: cap != null ? c >= cap : false,
+                    };
+                });
+            }
+
+            function redraw() {
+                render(cacheSumm, cachePets);
+            }
+
+            Promise.all([
+                api.fetchJSON("/shelters"),
+                api.fetchJSON("/pets"),
+            ])
+                .then(function (pair) {
+                    var shelters = pair[0] || [];
+                    cachePets = pair[1] || [];
+                    cacheSumm = mergeSheltersAndPets(shelters, cachePets);
+                    redraw();
+                    if (searchEl) {
+                        searchEl.addEventListener("input", redraw);
+                        searchEl.addEventListener("search", redraw);
+                    }
+                    if (sortEl) sortEl.addEventListener("change", redraw);
+                })
+                .catch(function (e) {
+                    err.style.display = "block";
+                    err.textContent = e.message || String(e);
+                });
+        })();
+    </script>
+</body>
+</html>

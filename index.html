@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — PawHaven Admin</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js"></script>
+    <script src="api.js"></script>
+</head>
+<body class="layout-admin">
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">🐾 PawHaven</div>
+        <p class="brand-sub">Rescued Pet Adoption — admin</p>
+        <nav>
+            <a href="index.html" data-nav>📊 Dashboard</a>
+            <a href="pets.html" data-nav>🐕 Pets</a>
+            <a href="medical.html" data-nav>🩺 Medical records</a>
+            <a href="adoptions.html" data-nav>📋 Adoptions</a>
+            <a href="shelters.html" data-nav>🏢 Shelters</a>
+            <a href="volunteers.html" data-nav>🤝 Volunteers</a>
+            <a href="volunteer-history.html" data-nav>📜 Volunteer history</a>
+            <a href="donations.html" data-nav>💚 Donations</a>
+            <!-- <a href="reports.html" data-nav>📈 Reports</a> -->
+            <!-- <a href="home.html" data-nav>🌐 Public site</a> -->
+            <a href="login.html" class="nav-logout" data-nav>🚪 Log out</a>
+        </nav>
+    </aside>
+
+    <main class="main">
+        <button type="button" class="menu-toggle" onclick="toggleSidebar()" aria-label="Open menu">☰ Menu</button>
+        <p id="dash-err" class="page-desc" style="display:none;color:#b91c1c;font-weight:600;"></p>
+        <h1 class="page-title">Dashboard</h1>
+        
+
+        <div class="dashboard">
+            <div class="card">
+                <h3>Total pets</h3>
+                <div class="stat" id="dash-pets">—</div>
+                
+            </div>
+            <div class="card">
+                <h3>Adoption applications</h3>
+                <div class="stat" id="dash-apps">—</div>
+                <p class="small">Pending &amp; approved</p>
+            </div>
+            <div class="card">
+                <h3>Active volunteers</h3>
+                <div class="stat" id="dash-vol">—</div>
+                <p class="small">Across all shelters</p>
+            </div>
+            <div class="card">
+                <h3>Donations</h3>
+                <div class="stat" id="dash-don">—</div>
+                <!-- <p class="small">Donor ⨝ Donation</p> -->
+            </div>
+        </div>
+
+        <h2 class="page-title" style="margin-top:2rem;font-size:1.2rem;">Quick actions</h2>
+        <p class="page-desc" style="margin-top:-0.5rem;">Jump to common tasks.</p>
+        <div style="display:flex;flex-wrap:wrap;gap:0.75rem;">
+            <a class="btn btn-primary" href="addnew.html">+ Add pet</a>
+            <a class="btn btn-outline" href="adoptions.html">Review applications</a>
+            <a class="btn btn-outline" href="donations.html">Record donation</a>
+        </div>
+    </main>
+    <script>
+        (function () {
+            var api = window.PawHavenAPI;
+            var dashErr = document.getElementById("dash-err");
+            if (!api || !api.fetchJSON) {
+                if (dashErr) {
+                    dashErr.style.display = "block";
+                    dashErr.textContent =
+                        "API client not loaded. Ensure api.js is included and you opened the site via the running server (http://localhost:3000/).";
+                }
+                return;
+            }
+            Promise.all([
+                api.fetchJSON("/pets").catch(function () {
+                    return [];
+                }),
+                api.fetchJSON("/applications").catch(function () {
+                    return [];
+                }),
+                api.fetchJSON("/volunteers").catch(function () {
+                    return [];
+                }),
+                api.fetchJSON("/donations").catch(function () {
+                    return [];
+                }),
+            ])
+                .then(function (data) {
+                var pets = data[0] || [];
+                var apps = data[1] || [];
+                var vols = data[2] || [];
+                var dons = data[3] || [];
+                var elP = document.getElementById("dash-pets");
+                var elA = document.getElementById("dash-apps");
+                var elV = document.getElementById("dash-vol");
+                var elD = document.getElementById("dash-don");
+                if (elP) elP.textContent = pets.length;
+                if (elA) elA.textContent = apps.length;
+                if (elV) {
+                    var active = vols.filter(function (v) {
+                        var s = (v.Status || v.status || "").toLowerCase();
+                        return s.indexOf("inact") === -1;
+                    }).length;
+                    elV.textContent = active || vols.length;
+                }
+                if (elD) {
+                    var sum = 0;
+                    dons.forEach(function (r) {
+                        var a = r.Amount != null ? r.Amount : r.amount;
+                        if (a != null) sum += Number(a);
+                    });
+                    elD.textContent =
+                        sum > 0 ? "₹" + sum.toLocaleString("en-IN") : "0";
+                }
+                })
+                .catch(function (e) {
+                    if (dashErr) {
+                        dashErr.style.display = "block";
+                        dashErr.textContent = e.message || String(e);
+                    }
+                });
+        })();
+    </script>
+</body>
+</html>

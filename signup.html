@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign up — PawHaven</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body.layout-signup {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            background: linear-gradient(145deg, #fef9f3, #d8ebe8);
+        }
+        .signup-card {
+            width: 100%;
+            max-width: 420px;
+            background: #fff;
+            padding: 2rem;
+            border-radius: 24px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(45, 106, 111, 0.08);
+        }
+        .signup-card h2 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 0.35rem;
+        }
+        .signup-card .hint {
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+        }
+        .signup-card .field {
+            margin-bottom: 1rem;
+        }
+        .signup-card input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            font-family: inherit;
+        }
+        .signup-card input:focus {
+            outline: none;
+            border-color: var(--sage);
+            box-shadow: 0 0 0 3px rgba(90, 143, 123, 0.2);
+        }
+        .signup-card .btn-full {
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+        .signup-card .foot {
+            text-align: center;
+            margin-top: 1.25rem;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+        .signup-card .foot a {
+            color: var(--coral);
+            font-weight: 700;
+            text-decoration: none;
+        }
+        #signup-error {
+            display: none;
+            font-size: 0.88rem;
+            color: #b91c1c;
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+        .signup-card input.input-invalid {
+            border-color: #dc2626;
+        }
+    </style>
+</head>
+<body class="layout-signup">
+    <div class="signup-card">
+        <h2>Create adopter account</h2>
+        <p class="hint">Creates an adopter row via the API when the server is running. Email must include @.</p>
+        <form id="signupForm" novalidate>
+            <p id="signup-error" role="alert"></p>
+            <div class="field">
+                <input type="text" id="su-name" name="name" placeholder="Full name" required maxlength="100">
+            </div>
+            <div class="field">
+                <input type="email" id="su-email" name="email" placeholder="Email (must contain @)" required autocomplete="email" maxlength="100">
+            </div>
+            <div class="field">
+                <input type="tel" name="phone" placeholder="Phone" autocomplete="tel">
+            </div>
+            <div class="field">
+                <input type="password" name="password" placeholder="Password" required autocomplete="new-password" minlength="6">
+            </div>
+            <button type="submit" class="btn btn-primary btn-full">Sign up</button>
+        </form>
+        <p class="foot">Already have an account? <a href="login.html">Log in</a></p>
+        <p class="foot"><a href="home.html">← Home</a></p>
+    </div>
+    <script src="api.js"></script>
+    <script>
+        document.getElementById("signupForm").addEventListener("submit", function (e) {
+            e.preventDefault();
+            var errBox = document.getElementById("signup-error");
+            var emailEl = document.getElementById("su-email");
+            var nameEl = document.getElementById("su-name");
+            function setErr(msg) {
+                if (!errBox) return;
+                if (msg) {
+                    errBox.style.display = "block";
+                    errBox.textContent = msg;
+                } else {
+                    errBox.style.display = "none";
+                    errBox.textContent = "";
+                }
+            }
+            function clearInvalid() {
+                setErr("");
+                if (emailEl) emailEl.classList.remove("input-invalid");
+                if (nameEl) nameEl.classList.remove("input-invalid");
+            }
+            clearInvalid();
+
+            var form = e.target;
+            var name = (nameEl && nameEl.value.trim()) || "";
+            var email = (emailEl && emailEl.value.trim()) || "";
+            var phone = (form.phone && form.phone.value.trim()) || "";
+            var password = (form.password && form.password.value) || "";
+
+            if (!name) {
+                setErr("Enter your full name.");
+                if (nameEl) nameEl.classList.add("input-invalid");
+                return;
+            }
+            if (!email || email.indexOf("@") === -1) {
+                setErr("Enter a valid email address (it must contain an @ sign).");
+                if (emailEl) emailEl.classList.add("input-invalid");
+                return;
+            }
+            var at = email.indexOf("@");
+            if (at === email.length - 1 || at === 0) {
+                setErr("Email needs text before and after the @ sign.");
+                if (emailEl) emailEl.classList.add("input-invalid");
+                return;
+            }
+            if (!password || password.length < 6) {
+                setErr("Password must be at least 6 characters.");
+                return;
+            }
+
+            if (!window.PawHavenAPI || !window.PawHavenAPI.fetchJSON) {
+                setErr("api.js missing. Reload the page.");
+                return;
+            }
+            window.PawHavenAPI.fetchJSON("/adopters", {
+                method: "POST",
+                skipStaffAuth: true,
+                body: {
+                    Name: name,
+                    Email: email,
+                    Phone: phone || null,
+                    Password: password,
+                },
+            })
+                .then(function (res) {
+                    var aid =
+                        (res && (res.Adopter_ID || res.adopter_id)) || "see database";
+                    alert(
+                        "Account saved. Your adopter ID is " +
+                            aid +
+                            ". Use that ID and your password on the login page."
+                    );
+                    window.location.href = "login.html";
+                })
+                .catch(function (err) {
+                    setErr(err.message || String(err));
+                });
+        });
+    </script>
+</body>
+</html>
