@@ -194,6 +194,9 @@
                     var contact =
                         v.Contact || v.Email || v.email || "—";
                     var assigns = byVol[id] || [];
+                    var historyUrl =
+                        "volunteer-history.html?Volunteer_ID=" +
+                        encodeURIComponent(id);
 
                     var art = document.createElement("article");
                     art.className = "volunteer-card";
@@ -220,6 +223,11 @@
                         });
                         tasksHtml += "</div>";
                     }
+
+                    tasksHtml +=
+                        '<div class="vol-section"><a class="btn btn-secondary" href="' +
+                        esc(historyUrl) +
+                        '">View history</a></div>';
 
                     art.innerHTML =
                         "<h3>" +

@@ -239,6 +239,7 @@
                         row.submitted_date ||
                         "—";
                     var status = row.Status || row.status || "Pending";
+                    var statusLower = String(status).toLowerCase();
                     var art = document.createElement("article");
                     art.className = "app-card";
                     art.innerHTML =
@@ -250,55 +251,125 @@
                         esc(submitted) +
                         "</p><p><strong>Application:</strong> " +
                         esc(apid) +
-                        '</p><p><span class="' +
+                        "</p><p><strong>Status:</strong> <select class=\"app-status\" data-id=\"" +
+                        esc(apid) +
+                        "\">" +
+                        '<option value="Pending"' +
+                        (statusLower === "pending" ? " selected" : "") +
+                        ">Pending</option>" +
+                        '<option value="Approved"' +
+                        (statusLower === "approved" ? " selected" : "") +
+                        ">Approved</option>" +
+                        '<option value="Rejected"' +
+                        (statusLower === "rejected" ? " selected" : "") +
+                        ">Rejected</option>" +
+                        '</select> <button type="button" class="btn btn-outline btn-sm app-save" data-id="' +
+                        esc(apid) +
+                        '">Save</button></p>' +
+                        '<p><span class="' +
                         badgeClass(status) +
                         '">' +
                         esc(status) +
                         "</span></p>";
                     grid.appendChild(art);
+                    var statusSel = art.querySelector(".app-status");
+                    var saveBtn = art.querySelector(".app-save");
+                    if (saveBtn && statusSel) {
+                        saveBtn.addEventListener("click", function () {
+                            var newStatus = statusSel.value || "Pending";
+                            updateApplicationStatus(
+                                apid,
+                                pid,
+                                newStatus,
+                                status,
+                                saveBtn
+                            );
+                        });
+                    }
                 });
             }
 
-            Promise.all([
-                api.fetchJSON("/applications"),
-                api.fetchJSON("/pets"),
-                api.fetchJSON("/adopters"),
-            ])
-                .then(function (triple) {
-                    apps = triple[0] || [];
-                    var pets = triple[1] || [];
-                    var adopters = triple[2] || [];
-                    petMap = {};
-                    pets.forEach(function (p) {
-                        var id = p.Pet_ID || p.pet_id;
-                        if (id != null)
-                            petMap[id] =
-                                api.petDisplayName(p) + " (" + id + ")";
-                    });
-                    adMap = {};
-                    adopters.forEach(function (a) {
-                        var id = a.Adopter_ID || a.adopter_id;
-                        if (id != null) adMap[id] = adopterName(a);
-                    });
-
-                    petSel.innerHTML = '<option value="">Select pet</option>';
-                    pets.forEach(function (p) {
-                        var id = p.Pet_ID || p.pet_id;
-                        if (id == null) return;
-                        var opt = document.createElement("option");
-                        opt.value = String(id);
-                        opt.textContent =
-                            api.petDisplayName(p) + " — ID " + id;
-                        petSel.appendChild(opt);
-                    });
-                    render();
+            function updateApplicationStatus(applicationId, petId, newStatus, oldStatus, button) {
+                if (!applicationId) return;
+                if (button) button.disabled = true;
+                errEl.style.display = "none";
+                api.fetchJSON("/applications/" + encodeURIComponent(applicationId), {
+                    method: "PUT",
+                    body: { Status: newStatus },
                 })
-                .catch(function (e) {
-                    if (errEl) {
+                    .then(function () {
+                        var newStatusLower = String(newStatus || "").toLowerCase();
+                        var oldStatusLower = String(oldStatus || "").toLowerCase();
+                        if (!petId) return null;
+                        if (newStatusLower === "approved") {
+                            return api.fetchJSON("/pets/" + encodeURIComponent(petId), {
+                                method: "PUT",
+                                body: { Adoption_status: "Adopted" },
+                            });
+                        }
+                        if (oldStatusLower === "approved" && newStatusLower !== "approved") {
+                            return api.fetchJSON("/pets/" + encodeURIComponent(petId), {
+                                method: "PUT",
+                                body: { Adoption_status: "Available" },
+                            });
+                        }
+                        return null;
+                    })
+                    .then(function () {
+                        loadAll();
+                    })
+                    .catch(function (err) {
+                        if (button) button.disabled = false;
                         errEl.style.display = "block";
-                        errEl.textContent = e.message || String(e);
-                    }
-                });
+                        errEl.textContent = err.message || String(err);
+                    });
+            }
+
+            function loadAll() {
+                errEl.style.display = "none";
+                Promise.all([
+                    api.fetchJSON("/applications"),
+                    api.fetchJSON("/pets"),
+                    api.fetchJSON("/adopters"),
+                ])
+                    .then(function (triple) {
+                        apps = triple[0] || [];
+                        var pets = triple[1] || [];
+                        var adopters = triple[2] || [];
+                        petMap = {};
+                        pets.forEach(function (p) {
+                            var id = p.Pet_ID || p.pet_id;
+                            if (id != null)
+                                petMap[id] =
+                                    api.petDisplayName(p) + " (" + id + ")";
+                        });
+                        adMap = {};
+                        adopters.forEach(function (a) {
+                            var id = a.Adopter_ID || a.adopter_id;
+                            if (id != null) adMap[id] = adopterName(a);
+                        });
+
+                        petSel.innerHTML = '<option value="">Select pet</option>';
+                        pets.forEach(function (p) {
+                            var id = p.Pet_ID || p.pet_id;
+                            if (id == null) return;
+                            var opt = document.createElement("option");
+                            opt.value = String(id);
+                            opt.textContent =
+                                api.petDisplayName(p) + " — ID " + id;
+                            petSel.appendChild(opt);
+                        });
+                        render();
+                    })
+                    .catch(function (e) {
+                        if (errEl) {
+                            errEl.style.display = "block";
+                            errEl.textContent = e.message || String(e);
+                        }
+                    });
+            }
+
+            loadAll();
 
             if (searchEl) {
                 searchEl.addEventListener("input", render);

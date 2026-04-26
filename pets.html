@@ -138,8 +138,8 @@
         <div class="search-bar">
             <input type="search" id="pet-search" placeholder="Search by name, breed, or ID…" aria-label="Search pets">
             <select id="pet-filter-status" aria-label="Filter by status">
-                <option value="all">All statuses</option>
-                <option value="available">Available</option>
+                <option value="all" selected>All statuses</option>
+                <option value="available" >Available</option>
                 <option value="adopted">Adopted</option>
                 <option value="treatment">Under treatment</option>
             </select>
@@ -226,8 +226,9 @@
             }
 
             function matchesStatusFilter(row, value) {
-                if (!value || value === "all") return true;
                 var s = (adoptionStatusOf(row) || "").toLowerCase();
+                if (s === "deleted") return false;
+                if (!value || value === "all") return true;
                 if (value === "available") return s.indexOf("available") !== -1;
                 if (value === "adopted") return s.indexOf("adopt") !== -1;
                 if (value === "treatment")
@@ -271,11 +272,33 @@
                 renderPets(getFilteredPets(), shelterMap);
             }
 
-            function placeholderImg(species) {
+            function placeholderImg(species, id) {
+                var dogs = [
+                    "https://images.unsplash.com/photo-1517423440428-a5a00ad493e8?w=400",
+                    "https://images.unsplash.com/photo-1507146426996-ef05306b995a?w=400",
+                    "https://images.unsplash.com/photo-1518717758536-85ae29035b6d?w=400"
+                ];
+                var cats = [
+                    "https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=400",
+                    "https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?w=400",
+                    "https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=400"
+                ];
+                var others = [
+                    "https://images.unsplash.com/photo-1511203466129-824e631920d0?w=400",
+                    "https://images.unsplash.com/photo-1504203700689-57b4bf4bec37?w=400"
+                ];
                 var s = (species || "").toLowerCase();
-                if (s.indexOf("cat") !== -1)
-                    return "https://images.unsplash.com/photo-1595433562696-90c1a5c6f78b?w=400";
-                return "https://images.unsplash.com/photo-1558788353-f76d92427f16?w=400";
+                var list = dogs;
+                if (s.indexOf("cat") !== -1) list = cats;
+                else if (s && s.indexOf("dog") === -1) list = others;
+                var seed = 0;
+                if (id != null) {
+                    var text = String(id) + "|" + String(species || "");
+                    for (var i = 0; i < text.length; i++) {
+                        seed += text.charCodeAt(i);
+                    }
+                }
+                return list[seed % list.length];
             }
 
             function statusClass(status) {
@@ -320,13 +343,14 @@
                     var species = row.Species || row.species || "";
                     var breed = row.Breed || row.breed || "";
                     var age = row.Age != null ? row.Age : row.age;
+                    var pid = row.Pet_ID || row.pet_id;
                     var img =
                         row.Image_URL ||
                         row.image_url ||
-                        placeholderImg(species);
-                    var pid = row.Pet_ID || row.pet_id;
+                        placeholderImg(species, pid);
                     var art = document.createElement("article");
                     art.className = "pet-card";
+                    art.dataset.petId = String(pid || "");
                     art.innerHTML =
                         '<span class="' +
                         statusClass(status) +
@@ -335,7 +359,9 @@
                         "</span>" +
                         '<img src="' +
                         escapeHtml(img) +
-                        '" alt="">' +
+                        '" alt="Photo of ' +
+                        escapeHtml(name) +
+                        '" loading="lazy">' +
                         '<div class="body"><h3>' +
                         escapeHtml(name) +
                         "</h3><p class=\"meta\">" +
@@ -344,10 +370,22 @@
                                 .filter(Boolean)
                                 .join(" · ")
                         ) +
-                        '</p><a class="btn btn-outline btn-sm" href="medical.html?pet=' +
+                        '</p><div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">' +
+                        '<a class="btn btn-outline btn-sm" href="medical.html?pet=' +
                         encodeURIComponent(String(pid || "")) +
-                        '">Medical history</a></div>';
+                        '">Medical history</a>' +
+                        '<button type="button" class="btn btn-danger btn-sm pet-delete" data-id="' +
+                        escapeHtml(String(pid || "")) +
+                        '">Delete</button>' +
+                        '</div></div>';
                     grid.appendChild(art);
+                    var deleteBtn = art.querySelector(".pet-delete");
+                    if (deleteBtn) {
+                        deleteBtn.addEventListener("click", function () {
+                            if (!confirm("Delete this pet? This action cannot be undone.")) return;
+                            deletePet(deleteBtn.dataset.id || pid, deleteBtn);
+                        });
+                    }
                 });
 
                 if (statsRow && statsRow.style.display !== "none") {
@@ -357,6 +395,32 @@
                     if (cells[2]) cells[2].innerHTML = adopted + " <small>Adopted</small>";
                     if (cells[3]) cells[3].innerHTML = care + " <small>Under treatment</small>";
                 }
+            }
+
+            function deletePet(petId, button) {
+                petId = petId || (button && button.dataset && button.dataset.id);
+                if (!petId) return;
+                if (button) button.disabled = true;
+                errEl.style.display = "none";
+                api.fetchJSON("/pets/" + encodeURIComponent(String(petId)), {
+                    method: "DELETE",
+                })
+                    .then(function () {
+                        if (button) {
+                            var card = button.closest(".pet-card");
+                            if (card) card.remove();
+                        }
+                        allPets = allPets.filter(function (row) {
+                            var id = row.Pet_ID || row.pet_id || "";
+                            return String(id) !== String(petId);
+                        });
+                        applyFilters();
+                    })
+                    .catch(function (err) {
+                        if (button) button.disabled = false;
+                        errEl.style.display = "block";
+                        errEl.textContent = err.message || String(err);
+                    });
             }
 
             function escapeHtml(s) {

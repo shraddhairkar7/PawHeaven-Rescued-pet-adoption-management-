@@ -189,6 +189,13 @@
                 );
             }
 
+            function getQueryParam(name) {
+                return new URLSearchParams(window.location.search).get(name) || "";
+            }
+
+            var initialVolunteerFilter =
+                getQueryParam("Volunteer_ID") || getQueryParam("volunteer_id") || "";
+
             function fillVolunteerSelects(volunteers) {
                 var opts =
                     '<option value="">Select volunteer…</option>';
@@ -227,6 +234,12 @@
                             "</option>";
                     });
                     filterVol.innerHTML = f;
+                    if (initialVolunteerFilter) {
+                        filterVol.value = initialVolunteerFilter;
+                    }
+                }
+                if (volSelect && initialVolunteerFilter) {
+                    volSelect.value = initialVolunteerFilter;
                 }
             }
 

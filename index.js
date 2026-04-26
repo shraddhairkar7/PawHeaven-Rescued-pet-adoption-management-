@@ -273,7 +273,7 @@ function nextVolunteerHistoryId(cb) {
 // example: fetching Pets from the database
 app.get("/pets", (req, res) => {
   db.query(
-    "SELECT * FROM pet ORDER BY Pet_ID ASC",
+    "SELECT * FROM pet WHERE Adoption_status IS NULL OR Adoption_status != 'Deleted' ORDER BY Pet_ID ASC",
     (err, result) => {
     if (err) {
       res.send(err);
@@ -361,19 +361,102 @@ app.put("/pets/:id", requireStaff, (req, res) => {
   });
 });
 
-// delete pet
+// delete pet and related records, but keep adoption application history intact
 app.delete("/pets/:id", requireStaff, (req, res) => {
   const id = req.params.id;
 
-  const sql = "DELETE FROM pet WHERE Pet_ID = ?";
-  db.query(sql, [id], (err, result) => {
-    if (err) {
-      res.send("Error deleting pet");
-    } else {
-      res.send("Pet deleted successfully");
+  db.beginTransaction((txErr) => {
+    if (txErr) {
+      return res.status(500).json({
+        error: txErr.message || String(txErr)
+      });
     }
+
+    // Delete adoption applications first (fix foreign key issue)
+    db.query(
+      "DELETE FROM adoption_application WHERE Pet_ID = ?",
+      [id],
+      (appErr) => {
+        if (appErr) {
+          return db.rollback(() => {
+            res.status(500).json({
+              error: appErr.message || String(appErr)
+            });
+          });
+        }
+
+        // Delete medical records
+        db.query(
+          "DELETE FROM medical_record WHERE Pet_ID = ?",
+          [id],
+          (medErr) => {
+            if (medErr) {
+              return db.rollback(() => {
+                res.status(500).json({
+                  error: medErr.message || String(medErr)
+                });
+              });
+            }
+
+            // Delete volunteer assignments
+            db.query(
+              "DELETE FROM cares_for WHERE Pet_ID = ?",
+              [id],
+              (careErr) => {
+                if (careErr) {
+                  return db.rollback(() => {
+                    res.status(500).json({
+                      error: careErr.message || String(careErr)
+                    });
+                  });
+                }
+
+                // Finally delete pet
+                db.query(
+                  "DELETE FROM pet WHERE Pet_ID = ?",
+                  [id],
+                  (petErr, result) => {
+                    if (petErr) {
+                      return db.rollback(() => {
+                        res.status(500).json({
+                          error: petErr.message || String(petErr)
+                        });
+                      });
+                    }
+
+                    if (result.affectedRows === 0) {
+                      return db.rollback(() => {
+                        res.status(404).json({
+                          error: "Pet not found"
+                        });
+                      });
+                    }
+
+                    db.commit((commitErr) => {
+                      if (commitErr) {
+                        return db.rollback(() => {
+                          res.status(500).json({
+                            error: commitErr.message || String(commitErr)
+                          });
+                        });
+                      }
+
+                      res.json({
+                        ok: true,
+                        message: "Pet deleted permanently"
+                      });
+                    });
+                  }
+                );
+              }
+            );
+          }
+        );
+      }
+    );
   });
 });
+
 
 // shelter APIs
 app.get("/shelters", (req, res) => {
